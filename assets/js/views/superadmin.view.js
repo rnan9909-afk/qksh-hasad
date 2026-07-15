@@ -582,9 +582,12 @@ async function renderRewards() {
         </table></div>
       </div>
 
-      <div class="section-card">
-        <div class="border-b border-[#e7edf3] px-6 py-4"><h2 class="text-lg font-bold">جدول الجوائز</h2><p class="text-xs text-slate-500 mt-0.5">المبالغ قابلة للتعديل (اضغط ✎).</p></div>
-        <div class="overflow-x-auto"><table class="data-table" style="min-width:640px;">
+      <details class="section-card group">
+        <summary class="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between px-6 py-4">
+          <div><h2 class="text-lg font-bold">جدول الجوائز</h2><p class="text-xs text-slate-500 mt-0.5">المبالغ قابلة للتعديل (اضغط ✎). — اضغط للعرض/الإخفاء</p></div>
+          <span class="material-symbols-outlined text-slate-400 transition-transform group-open:rotate-180">expand_more</span>
+        </summary>
+        <div class="overflow-x-auto border-t border-[#e7edf3]"><table class="data-table" style="min-width:640px;">
           <thead><tr><th>المستوى</th><th>الجزء</th><th>التقدير</th><th>النسبة</th><th>مقدار الجائزة</th><th>تعديل</th></tr></thead>
           <tbody id="rw_cfg">${rewards.map((r) => `<tr>
             <td class="font-bold text-secondary">${escapeHtml(r.levelLabel)}</td>
@@ -595,7 +598,7 @@ async function renderRewards() {
             <td><button data-rwedit="${escapeHtml(r.id)}" data-amt="${r.amount}" class="text-emerald-600 bg-emerald-50 p-1.5 rounded" title="تعديل المبلغ"><span class="material-symbols-outlined text-[18px]">edit</span></button></td>
           </tr>`).join('')}</tbody>
         </table></div>
-      </div>
+      </details>
     </div>`;
 
   const filterEl = content().querySelector('#rw_filter');
