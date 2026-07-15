@@ -12,6 +12,7 @@ import { generateId, toLatinDigits } from '../core/helpers.js';
 import { getSession } from '../core/session.js';
 import { isValidNationalId, isValidMobile } from '../core/validation.js';
 import { logEvent } from './audit.service.js';
+import { notify } from './push.service.js';
 
 /** جلب كل الطلاب. */
 export function getAllStudents() {
@@ -75,6 +76,15 @@ export async function createStudent(data) {
   };
   await db().create(COLLECTIONS.STUDENTS, record, record.id);
   await logEvent('student.create', `إضافة طالب: ${record.name}`, { targetType: 'student', targetId: record.id });
+  // إشعار المعلم (والمشرف العام) بأن لديه طالباً بحاجة للاختبار الداخلي
+  notify({
+    title: 'لديك طالب بحاجة للاختبار',
+    body: `${record.name}${record.examLevel ? ' — ' + record.examLevel : ''}`,
+    roles: ['super_admin'],
+    userIds: record.teacherId ? [record.teacherId] : [],
+    schoolId: record.schoolId,
+    url: 'dashboard.html',
+  });
   return { success: true, id: record.id };
 }
 
