@@ -11,7 +11,7 @@
  */
 
 import { EvaluationEngine } from '../engine/evaluation.engine.js';
-import { getArabicOrdinal, escapeHtml } from '../core/helpers.js';
+import { getArabicOrdinal, escapeHtml, partsCount } from '../core/helpers.js';
 import * as toast from '../core/toast.js';
 
 let root = null;
@@ -94,7 +94,7 @@ export function openExamModal(student, { mode = 'internal', levels = [], onAppro
 
   root.querySelector('#em_name').textContent = student.name;
   root.querySelector('#em_level').textContent = student.examLevel;
-  root.querySelector('#em_parts').textContent = student.parts || '';
+  root.querySelector('#em_parts').textContent = partsCount(student.parts) || '';
   const modeEl = root.querySelector('#em_mode');
   modeEl.textContent = mode === 'internal' ? 'اختبار داخلي' : 'اختبار نهائي';
   modeEl.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ' +

@@ -9,7 +9,7 @@
  */
 
 import { getTemplate } from '../services/certificate-template.service.js';
-import { isItqanLevel, gradeText, today } from '../core/helpers.js';
+import { isItqanLevel, gradeText, today, partsCount } from '../core/helpers.js';
 import { CONFIG } from '../config.js';
 
 const JSPDF_URL = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/+esm';
@@ -31,7 +31,7 @@ export function buildValues(data, tpl = {}) {
   return {
     'الاسم': data.name || '',
     'المدرسة': data.school || '',
-    'الجزء': data.parts || '',
+    'الجزء': partsCount(data.parts) || '',
     'المستوى': data.level || '',
     'الدرجة': data.score || '',
     'التقدير': computeGrade(data.score, data.level) || '',

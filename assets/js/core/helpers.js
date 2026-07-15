@@ -99,3 +99,18 @@ export function isItqanLevel(level) {
   const s = String(level);
   return s.indexOf('إتقان') > -1 || s.indexOf('الإتقان') > -1;
 }
+
+/**
+ * تحويل قيمة "الأجزاء" إلى عدد فقط (رقم واحد) — يُعتمد في كل النظام.
+ * يقبل: عدداً جاهزاً، أو نطاقاً "1 - 30"، أو قائمة "26، 27، 28"، ويُرجع العدد.
+ */
+export function partsCount(parts) {
+  if (parts == null || parts === '') return '';
+  const s = String(parts).trim();
+  if (/^\d+$/.test(s)) return s;                          // عدد جاهز
+  const range = s.match(/^(\d+)\s*[-–]\s*(\d+)$/);         // نطاق a - b
+  if (range) return String(Math.abs(+range[2] - +range[1]) + 1);
+  const items = s.split(/[،,]/).map((x) => x.trim()).filter(Boolean);
+  if (items.length > 1) return String(items.length);      // قائمة أرقام
+  return s;                                                // نص وصفي (يُترك كما هو)
+}

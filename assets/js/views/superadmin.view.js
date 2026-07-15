@@ -17,7 +17,7 @@ import { reopenExam } from '../services/exams.service.js';
 import { mountCertificateEditor } from '../components/certificate-editor.js';
 import { openReport } from '../components/report.js';
 import { statGrid, statusBadge } from '../components/ui-blocks.js';
-import { escapeHtml } from '../core/helpers.js';
+import { escapeHtml, partsCount } from '../core/helpers.js';
 import * as toast from '../core/toast.js';
 
 let root, session;
@@ -561,7 +561,7 @@ async function renderRewards() {
             <td class="font-bold text-secondary">${escapeHtml(x.s.name)}</td>
             <td class="text-xs">${escapeHtml(x.s.schoolName || '-')}</td>
             <td class="text-xs">${escapeHtml(x.s.examLevel)}</td>
-            <td class="text-xs">${escapeHtml(x.s.parts || '-')}</td>
+            <td class="text-xs">${escapeHtml(partsCount(x.s.parts) || '-')}</td>
             <td class="font-bold text-emerald-600">${escapeHtml(String(x.s.final.score))}</td>
             <td class="text-xs">${escapeHtml(x.r.grade)}</td>
             <td class="font-bold text-primary">${x.r.amount} ريال</td>
@@ -606,7 +606,7 @@ function rewardsReport(winners) {
       { label: 'الطالب/ة', get: (x) => x.s.name },
       { label: 'المدرسة', get: (x) => x.s.schoolName || '-' },
       { label: 'المستوى', get: (x) => x.s.examLevel },
-      { label: 'الأجزاء', get: (x) => x.s.parts || '-' },
+      { label: 'الأجزاء', get: (x) => partsCount(x.s.parts) || '-' },
       { label: 'الدرجة', get: (x) => x.s.final.score },
       { label: 'التقدير', get: (x) => x.r.grade },
       { label: 'مقدار الجائزة (ريال)', get: (x) => x.r.amount },

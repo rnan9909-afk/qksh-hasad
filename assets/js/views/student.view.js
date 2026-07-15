@@ -5,7 +5,7 @@
 import { getStudentsByNationalId } from '../services/students.service.js';
 import { downloadCertificate } from '../certificates/certificate.service.js';
 import { statusBadge, scheduleBanner } from '../components/ui-blocks.js';
-import { escapeHtml } from '../core/helpers.js';
+import { escapeHtml, partsCount } from '../core/helpers.js';
 import { passingScoreFor } from '../services/exams.service.js';
 import * as toast from '../core/toast.js';
 
@@ -67,7 +67,7 @@ function card(r, i, nid) {
         ${scheduleBanner(r.schedule)}
         <div class="grid sm:grid-cols-2 gap-4">
           ${infoBox('domain', 'المجمع / المدرسة', r.schoolName)}
-          ${infoBox('menu_book', 'مستوى الاختبار', r.examLevel + (r.parts ? ' — ' + r.parts : ''))}
+          ${infoBox('menu_book', 'مستوى الاختبار', r.examLevel + (partsCount(r.parts) ? ' — ' + partsCount(r.parts) + ' أجزاء' : ''))}
           ${infoBox('person', 'المعلم/ة', r.teacherName || '-')}
           ${infoBox('groups', 'الحلقة', r.className || '-')}
         </div>

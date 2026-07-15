@@ -11,7 +11,7 @@ import { downloadCertificate } from '../certificates/certificate.service.js';
 import { statusBadge, certCell, nominationBadge, scheduleLine } from '../components/ui-blocks.js';
 import { statGrid } from '../components/ui-blocks.js';
 import { statusOrder } from '../core/workflow.js';
-import { escapeHtml, matchesAllTerms, hasValue } from '../core/helpers.js';
+import { escapeHtml, matchesAllTerms, hasValue, partsCount } from '../core/helpers.js';
 import * as toast from '../core/toast.js';
 
 let root, session, levels = [], students = [];
@@ -84,7 +84,7 @@ function renderRows() {
       <td class="font-bold text-secondary">${escapeHtml(s.name)}<div class="text-xs text-slate-400 font-mono">${escapeHtml(s.nationalId)}</div></td>
       <td class="text-xs text-slate-600">${escapeHtml(s.teacherName || '-')}</td>
       <td><span class="bg-slate-100 px-2 py-1 rounded text-xs">${escapeHtml(s.examLevel)}</span></td>
-      <td class="text-xs">${escapeHtml(s.parts || '-')}</td>
+      <td class="text-xs">${escapeHtml(partsCount(s.parts) || '-')}</td>
       <td class="font-bold ${internalScore !== '-' ? 'text-emerald-600' : 'text-slate-300'}">${escapeHtml(String(internalScore))}</td>
       <td>${statusBadge(s.status)}${scheduleLine(s.schedule)}<div class="mt-0.5">${nominationBadge(s)}</div></td>
       <td class="font-bold ${finalScore !== '-' ? 'text-emerald-600' : 'text-slate-300'}">${escapeHtml(String(finalScore))}</td>
