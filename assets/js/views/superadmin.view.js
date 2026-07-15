@@ -22,6 +22,8 @@ import * as toast from '../core/toast.js';
 
 let root, session;
 let cache = { users: [], students: [], schools: [], levels: [] };
+let rwWinnersAll = [];   // مكافآت الطلاب (كل الناجحين)
+let rwWinnersView = [];  // المعروض بعد التصفية بالمدرسة
 
 const TABS = [
   { id: 'overview', label: 'نظرة عامة', icon: 'dashboard' },
@@ -535,14 +537,24 @@ async function historyForm() {
 }
 
 /* --------------------------- جوائز الطلاب --------------------------- */
+const rwKey = (s) => s.schoolId || s.schoolName || '—';
+
 async function renderRewards() {
   const [rewards, students] = await Promise.all([getRewards(), getAllStudents()]);
   cache.students = students;
-  const winners = students
+  rwWinnersAll = students
     .filter((s) => ['result_approved', 'certificate_ready'].includes(s.status) && s.final && s.final.score)
     .map((s) => ({ s, r: computeReward(s.examLevel, s.final.score, rewards) }))
     .filter((x) => x.r);
-  const total = winners.reduce((sum, x) => sum + (Number(x.r.amount) || 0), 0);
+
+  // المدارس التي لديها فائزون (لأداة التصفية)
+  const schoolMap = new Map();
+  rwWinnersAll.forEach((x) => { schoolMap.set(rwKey(x.s), x.s.schoolName || '—'); });
+  const schoolChips = [...schoolMap.entries()].map(([id, name]) => `
+    <label class="school-check inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer text-xs" style="border-color:rgba(30,77,43,0.16);background:rgba(255,255,255,0.6);">
+      <input type="checkbox" class="rw-fs" value="${escapeHtml(id)}" checked style="width:1rem;height:1rem;accent-color:#1E4D2B;">
+      <span class="font-bold text-slate-700">${escapeHtml(name)}</span>
+    </label>`).join('');
 
   content().innerHTML = `
     <div class="space-y-6">
@@ -550,22 +562,23 @@ async function renderRewards() {
         <div class="flex flex-wrap justify-between items-center gap-3 border-b border-[#e7edf3] px-6 py-4">
           <div><h2 class="text-lg font-bold">مكافآت الطلاب</h2><p class="text-xs text-slate-500 mt-0.5">تُحتسب تلقائياً للطلاب الناجحين حسب المستوى والدرجة.</p></div>
           <div class="flex gap-2 items-center flex-wrap">
-            <span class="text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full">الإجمالي: ${total} ريال</span>
+            <span id="rw_total" class="text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full"></span>
             <button id="rw_report" class="btn-primary px-4 py-2 text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">summarize</span> معاينة / تصدير</button>
           </div>
         </div>
+        ${schoolMap.size ? `<div class="px-6 py-3 border-b border-[#eef2f7] bg-slate-50/60">
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+            <span class="text-xs font-bold text-slate-600 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">filter_alt</span> تصفية بالمدرسة (يمكن اختيار أكثر من مدرسة)</span>
+            <div class="flex gap-2">
+              <button id="rw_all" class="text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-bold">تحديد الكل</button>
+              <button id="rw_none" class="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full font-bold">إلغاء الكل</button>
+            </div>
+          </div>
+          <div id="rw_filter" class="flex flex-wrap gap-2">${schoolChips}</div>
+        </div>` : ''}
         <div class="overflow-x-auto"><table class="data-table" style="min-width:820px;">
           <thead><tr><th>م</th><th>الطالب/ة</th><th>المدرسة</th><th>المستوى</th><th>الأجزاء</th><th>الدرجة</th><th>التقدير</th><th>مقدار الجائزة</th></tr></thead>
-          <tbody>${winners.length ? winners.map((x, i) => `<tr>
-            <td class="text-slate-500">${i + 1}</td>
-            <td class="font-bold text-secondary">${escapeHtml(x.s.name)}</td>
-            <td class="text-xs">${escapeHtml(x.s.schoolName || '-')}</td>
-            <td class="text-xs">${escapeHtml(x.s.examLevel)}</td>
-            <td class="text-xs">${escapeHtml(partsCount(x.s.parts) || '-')}</td>
-            <td class="font-bold text-emerald-600">${escapeHtml(String(x.s.final.score))}</td>
-            <td class="text-xs">${escapeHtml(x.r.grade)}</td>
-            <td class="font-bold text-primary">${x.r.amount} ريال</td>
-          </tr>`).join('') : '<tr><td colspan="8" class="text-center py-8 text-slate-400">لا توجد مكافآت بعد — تظهر تلقائياً بعد اجتياز الطلاب</td></tr>'}</tbody>
+          <tbody id="rw_body"></tbody>
         </table></div>
       </div>
 
@@ -585,7 +598,13 @@ async function renderRewards() {
       </div>
     </div>`;
 
-  content().querySelector('#rw_report').addEventListener('click', () => rewardsReport(winners));
+  const filterEl = content().querySelector('#rw_filter');
+  if (filterEl) {
+    filterEl.addEventListener('change', paintRewards);
+    content().querySelector('#rw_all').addEventListener('click', () => { filterEl.querySelectorAll('.rw-fs').forEach((c) => (c.checked = true)); paintRewards(); });
+    content().querySelector('#rw_none').addEventListener('click', () => { filterEl.querySelectorAll('.rw-fs').forEach((c) => (c.checked = false)); paintRewards(); });
+  }
+  content().querySelector('#rw_report').addEventListener('click', () => rewardsReport(rwWinnersView));
   content().querySelector('#rw_cfg').addEventListener('click', async (e) => {
     const ed = e.target.closest('[data-rwedit]'); if (!ed) return;
     const val = await toast.prompt('تعديل مبلغ الجائزة', { label: 'المبلغ (ريال)', value: String(ed.dataset.amt) });
@@ -594,9 +613,38 @@ async function renderRewards() {
     try { await updateRewardAmount(ed.dataset.rwedit, val); toast.close(); renderRewards(); }
     catch (er) { toast.close(); toast.error('خطأ', er.message); }
   });
+
+  paintRewards();
+}
+
+/** إعادة رسم جدول المكافآت حسب المدارس المحددة. */
+function paintRewards() {
+  const filterEl = content().querySelector('#rw_filter');
+  let list = rwWinnersAll;
+  if (filterEl) {
+    const sel = new Set(Array.from(filterEl.querySelectorAll('.rw-fs:checked')).map((c) => c.value));
+    list = rwWinnersAll.filter((x) => sel.has(rwKey(x.s)));
+  }
+  rwWinnersView = list;
+  const total = list.reduce((sum, x) => sum + (Number(x.r.amount) || 0), 0);
+  const totalEl = content().querySelector('#rw_total');
+  if (totalEl) totalEl.textContent = `الإجمالي: ${total} ريال (${list.length})`;
+  const tb = content().querySelector('#rw_body');
+  if (!tb) return;
+  tb.innerHTML = list.length ? list.map((x, i) => `<tr>
+    <td class="text-slate-500">${i + 1}</td>
+    <td class="font-bold text-secondary">${escapeHtml(x.s.name)}</td>
+    <td class="text-xs">${escapeHtml(x.s.schoolName || '-')}</td>
+    <td class="text-xs">${escapeHtml(x.s.examLevel)}</td>
+    <td class="text-xs">${escapeHtml(partsCount(x.s.parts) || '-')}</td>
+    <td class="font-bold text-emerald-600">${escapeHtml(String(x.s.final.score))}</td>
+    <td class="text-xs">${escapeHtml(x.r.grade)}</td>
+    <td class="font-bold text-primary">${x.r.amount} ريال</td>
+  </tr>`).join('') : '<tr><td colspan="8" class="text-center py-8 text-slate-400">لا توجد مكافآت مطابقة</td></tr>';
 }
 
 function rewardsReport(winners) {
+  if (!winners.length) { toast.info('لا توجد بيانات', 'اختر مدرسة واحدة على الأقل بها مكافآت.'); return; }
   const ok = openReport({
     title: 'مكافآت الطلاب المالية',
     subtitle: 'الطلاب الناجحون ومقدار مكافأة كل منهم',
