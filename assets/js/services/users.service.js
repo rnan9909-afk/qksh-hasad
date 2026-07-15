@@ -46,6 +46,7 @@ export async function createUser(data) {
     active: data.active !== false,
     schoolId: data.schoolId || '',
     schools: Array.isArray(data.schools) ? data.schools : [],
+    circleType: data.circleType || '',
     phone: toLatinDigits(data.phone || ''),
     createdAt: new Date().toISOString(),
     createdBy: session.nationalId || '',
@@ -60,7 +61,7 @@ export async function updateUser(id, patch) {
   const existing = await db().get(COLLECTIONS.USERS, id);
   if (!existing) return { success: false, message: 'المستخدم غير موجود' };
   const clean = {};
-  for (const k of ['name', 'role', 'schoolId', 'schools', 'phone', 'active']) {
+  for (const k of ['name', 'role', 'schoolId', 'schools', 'circleType', 'phone', 'active']) {
     if (patch[k] !== undefined) clean[k] = patch[k];
   }
   if (clean.phone) clean.phone = toLatinDigits(clean.phone);

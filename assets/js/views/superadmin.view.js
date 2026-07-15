@@ -13,6 +13,7 @@ import { getVariableOptions, addVariableOption, updateVariableOption, removeVari
 import { getAuditLog } from '../services/audit.service.js';
 import { getBatches, addBatch, deleteBatch, parseResultsPaste, getBatchRecords } from '../services/results-history.service.js';
 import { getRewards, updateRewardAmount, computeReward } from '../services/rewards.service.js';
+import { getTeacherRewardTiers, updateTeacherRewardAmount, computeProductivity, matchTier, CIRCLE_TYPES, circleLabel, circleBasis } from '../services/teacher-rewards.service.js';
 import { reopenExam } from '../services/exams.service.js';
 import { mountCertificateEditor } from '../components/certificate-editor.js';
 import { openReport } from '../components/report.js';
@@ -24,6 +25,7 @@ let root, session;
 let cache = { users: [], students: [], schools: [], levels: [] };
 let rwWinnersAll = [];   // مكافآت الطلاب (كل الناجحين)
 let rwWinnersView = [];  // المعروض بعد التصفية بالمدرسة
+let trTeachers = [], trStudents = [], trTiers = [], trView = [];  // مكافآت المعلمين
 
 const TABS = [
   { id: 'overview', label: 'نظرة عامة', icon: 'dashboard' },
@@ -34,6 +36,7 @@ const TABS = [
   { id: 'certificate', label: 'قالب الشهادة', icon: 'workspace_premium' },
   { id: 'history', label: 'سجل النتائج', icon: 'database' },
   { id: 'rewards', label: 'جوائز الطلاب', icon: 'payments' },
+  { id: 'teacherRewards', label: 'مكافآت المعلمين', icon: 'volunteer_activism' },
   { id: 'exams', label: 'الاختبارات', icon: 'fact_check' },
   { id: 'audit', label: 'سجل الأحداث', icon: 'history' },
 ];
@@ -71,6 +74,7 @@ async function renderTab(tab) {
   if (tab === 'certificate') return mountCertificateEditor(content());
   if (tab === 'history') return renderHistory();
   if (tab === 'rewards') return renderRewards();
+  if (tab === 'teacherRewards') return renderTeacherRewards();
   if (tab === 'exams') return renderExams();
   if (tab === 'audit') return renderAudit();
 }
@@ -147,6 +151,8 @@ async function userForm(existing = null) {
     : '<span class="text-xs text-slate-400 font-normal">لا توجد مدارس — أضف مدرسة أولاً</span>';
   const g = (k) => (existing && existing[k] != null ? escapeHtml(existing[k]) : '');
   const isSup = existing && existing.role === ROLES.EXAM_SUPERVISOR;
+  const isTeacher = existing && existing.role === ROLES.TEACHER;
+  const circleOpts = ['<option value="">— غير محدّد —</option>', ...CIRCLE_TYPES.map((c) => `<option value="${c.key}" ${existing && existing.circleType === c.key ? 'selected' : ''}>${escapeHtml(c.label)}</option>`)].join('');
 
   const res = await window.Swal.fire({
     title: isEdit ? 'تعديل مستخدم' : 'إضافة مستخدم',
@@ -155,6 +161,7 @@ async function userForm(existing = null) {
       <label class="flex flex-col gap-1 text-sm font-bold">رقم الهوية<input id="u_id" class="field-input" maxlength="10" value="${g('id')}" ${isEdit ? 'readonly' : ''}></label>
       <label class="flex flex-col gap-1 text-sm font-bold">الدور<select id="u_role" class="field-select">${roleOpts}</select></label>
       <label id="u_school_wrap" class="flex flex-col gap-1 text-sm font-bold ${isSup ? 'hidden' : ''}">المدرسة<select id="u_school" class="field-select">${schoolOpts}</select></label>
+      <label id="u_circle_wrap" class="flex flex-col gap-1 text-sm font-bold ${isTeacher ? '' : 'hidden'}">نوع الحلقة (لائحة الحوافز)<select id="u_circle" class="field-select">${circleOpts}</select></label>
       <label id="u_schools_wrap" class="flex flex-col gap-1 text-sm font-bold sm:col-span-2 ${isSup ? '' : 'hidden'}">المدارس المسؤول عنها
         <span class="text-[11px] text-slate-400 font-normal mb-1">اضغط ✔ بجانب اسم المدرسة لتوكيلها للمشرف</span>
         <div id="u_schools_list" class="flex flex-col gap-2 max-h-52 overflow-auto p-0.5">${schoolChecks}</div>
@@ -166,8 +173,10 @@ async function userForm(existing = null) {
       const roleSel = document.getElementById('u_role');
       const toggle = () => {
         const sup = roleSel.value === ROLES.EXAM_SUPERVISOR;
+        const teacher = roleSel.value === ROLES.TEACHER;
         document.getElementById('u_schools_wrap').classList.toggle('hidden', !sup);
         document.getElementById('u_school_wrap').classList.toggle('hidden', sup);
+        document.getElementById('u_circle_wrap').classList.toggle('hidden', !teacher);
       };
       roleSel.addEventListener('change', toggle);
       toggle();
@@ -179,6 +188,7 @@ async function userForm(existing = null) {
         name: document.getElementById('u_name').value.trim(),
         role,
         phone: document.getElementById('u_phone').value.trim(),
+        circleType: role === ROLES.TEACHER ? document.getElementById('u_circle').value : '',
       };
       if (role === ROLES.EXAM_SUPERVISOR) {
         data.schools = Array.from(document.querySelectorAll('#u_schools_list .u-school-cb:checked')).map((c) => c.value);
@@ -692,6 +702,176 @@ function rewardsReport(winners) {
     ],
     rows: winners,
     footNote: 'إجمالي المكافآت: ' + winners.reduce((s, x) => s + (Number(x.r.amount) || 0), 0) + ' ريال',
+  });
+  if (!ok) toast.error('تعذّر فتح النافذة', 'اسمح بالنوافذ المنبثقة.');
+}
+
+/* --------------------------- مكافآت المعلمين --------------------------- */
+const trRangeLabel = (t) => (t.maxVal == null ? `${t.minVal} فأكثر` : (t.minVal === 0 ? `${t.maxVal} فأقل` : `${t.minVal} - ${t.maxVal}`));
+
+async function renderTeacherRewards() {
+  const [users, students, tiers, schools] = await Promise.all([getAllUsers(), getAllStudents(), getTeacherRewardTiers(), getSchools()]);
+  cache.schools = schools;
+  trTeachers = users.filter((u) => u.role === ROLES.TEACHER);
+  trStudents = students;
+  trTiers = tiers;
+
+  // مدارس المعلمين (لأداة التصفية)
+  const smap = new Map();
+  trTeachers.forEach((t) => { const s = schools.find((x) => x.id === t.schoolId); smap.set(t.schoolId || '—', s ? s.name : '—'); });
+  const schoolChips = [...smap.entries()].map(([id, name]) => `
+    <label class="school-check inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer text-xs" style="border-color:rgba(30,77,43,0.16);background:rgba(255,255,255,0.6);">
+      <input type="checkbox" class="tr-fs" value="${escapeHtml(id)}" checked style="width:1rem;height:1rem;accent-color:#1E4D2B;">
+      <span class="font-bold text-slate-700">${escapeHtml(name)}</span>
+    </label>`).join('');
+
+  const noCircle = trTeachers.filter((t) => !t.circleType).length;
+
+  content().innerHTML = `
+    <div class="space-y-6">
+      <div class="section-card">
+        <div class="flex flex-wrap justify-between items-center gap-3 border-b border-[#e7edf3] px-6 py-4">
+          <div><h2 class="text-lg font-bold">مكافآت المعلمين</h2><p class="text-xs text-slate-500 mt-0.5">تُحتسب الإنتاجية والأداء والحافز تلقائياً حسب لائحة الإنتاجية.</p></div>
+          <div class="flex gap-2 items-center flex-wrap">
+            <span id="tr_total" class="text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full"></span>
+            <button id="tr_report" class="btn-primary px-4 py-2 text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">summarize</span> معاينة / تصدير</button>
+          </div>
+        </div>
+        ${noCircle ? `<div class="px-6 py-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100"><span class="material-symbols-outlined text-[15px]" style="vertical-align:middle;">info</span> ${noCircle} معلم/ة بلا «نوع حلقة» — حدّده من تبويب المستخدمين ليُحتسب حافزه.</div>` : ''}
+        ${smap.size ? `<div class="px-6 py-3 border-b border-[#eef2f7] bg-slate-50/60 space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold text-slate-600 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">event</span> التاريخ من:</span>
+            <input type="date" id="tr_from" class="rounded-lg border border-[#e7edf3] px-2 py-1 text-xs">
+            <span class="text-xs font-bold text-slate-600">إلى:</span>
+            <input type="date" id="tr_to" class="rounded-lg border border-[#e7edf3] px-2 py-1 text-xs">
+            <button id="tr_dclear" class="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full font-bold">مسح التاريخ</button>
+          </div>
+          <div>
+            <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+              <span class="text-xs font-bold text-slate-600 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">filter_alt</span> تصفية بالمدرسة</span>
+              <div class="flex gap-2">
+                <button id="tr_all" class="text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-bold">تحديد الكل</button>
+                <button id="tr_none" class="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full font-bold">إلغاء الكل</button>
+              </div>
+            </div>
+            <div id="tr_filter" class="flex flex-wrap gap-2">${schoolChips}</div>
+          </div>
+        </div>` : ''}
+        <div class="overflow-x-auto"><table class="data-table" style="min-width:900px;">
+          <thead><tr><th>م</th><th>المعلم/ة</th><th>المدرسة</th><th>نوع الحلقة</th><th>الإنتاجية</th><th>الأداء</th><th>الحافز</th></tr></thead>
+          <tbody id="tr_body"></tbody>
+        </table></div>
+      </div>
+
+      <details class="section-card group">
+        <summary class="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between px-6 py-4">
+          <div><h2 class="text-lg font-bold">لائحة الحوافز</h2><p class="text-xs text-slate-500 mt-0.5">المبالغ قابلة للتعديل (اضغط ✎). — اضغط للعرض/الإخفاء</p></div>
+          <span class="material-symbols-outlined text-slate-400 transition-transform group-open:rotate-180">expand_more</span>
+        </summary>
+        <div class="overflow-x-auto border-t border-[#e7edf3]"><table class="data-table" style="min-width:720px;">
+          <thead><tr><th>نوع الحلقة</th><th>الأداء</th><th>النسبة</th><th>الإنتاجية</th><th>الحافز</th><th>تعديل</th></tr></thead>
+          <tbody id="tr_cfg">${tiers.map((t) => `<tr>
+            <td class="text-xs font-bold text-secondary">${escapeHtml(t.circleLabel)}</td>
+            <td class="text-xs">${escapeHtml(t.level)}</td>
+            <td class="text-xs text-slate-500">${escapeHtml(t.pctLabel)}</td>
+            <td class="text-xs">${escapeHtml(trRangeLabel(t))} ${t.basis === 'juz' ? 'جزء' : 'طالب'}</td>
+            <td class="font-bold ${t.action === 'حافز' ? 'text-primary' : 'text-amber-600'}">${t.action === 'حافز' ? t.amount + ' ريال' : escapeHtml(t.action)}</td>
+            <td>${t.action === 'حافز' ? `<button data-tredit="${escapeHtml(t.id)}" data-amt="${t.amount}" class="text-emerald-600 bg-emerald-50 p-1.5 rounded" title="تعديل المبلغ"><span class="material-symbols-outlined text-[18px]">edit</span></button>` : '-'}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </details>
+    </div>`;
+
+  const filterEl = content().querySelector('#tr_filter');
+  if (filterEl) {
+    filterEl.addEventListener('change', paintTeacherRewards);
+    content().querySelector('#tr_all').addEventListener('click', () => { filterEl.querySelectorAll('.tr-fs').forEach((c) => (c.checked = true)); paintTeacherRewards(); });
+    content().querySelector('#tr_none').addEventListener('click', () => { filterEl.querySelectorAll('.tr-fs').forEach((c) => (c.checked = false)); paintTeacherRewards(); });
+    content().querySelector('#tr_from').addEventListener('change', paintTeacherRewards);
+    content().querySelector('#tr_to').addEventListener('change', paintTeacherRewards);
+    content().querySelector('#tr_dclear').addEventListener('click', () => { content().querySelector('#tr_from').value = ''; content().querySelector('#tr_to').value = ''; paintTeacherRewards(); });
+  }
+  content().querySelector('#tr_report').addEventListener('click', () => teacherRewardsReport(trView));
+  content().querySelector('#tr_cfg').addEventListener('click', async (e) => {
+    const ed = e.target.closest('[data-tredit]'); if (!ed) return;
+    const val = await toast.prompt('تعديل مبلغ الحافز', { label: 'المبلغ (ريال)', value: String(ed.dataset.amt) });
+    if (val == null) return;
+    toast.showLoading('...');
+    try { await updateTeacherRewardAmount(ed.dataset.tredit, val); toast.close(); renderTeacherRewards(); }
+    catch (er) { toast.close(); toast.error('خطأ', er.message); }
+  });
+
+  paintTeacherRewards();
+}
+
+/** حساب صفوف المعلمين حسب التصفية (مدرسة + تاريخ). */
+function computeTeacherRows() {
+  const filterEl = content().querySelector('#tr_filter');
+  const from = (content().querySelector('#tr_from') || {}).value || '';
+  const to = (content().querySelector('#tr_to') || {}).value || '';
+  const sel = filterEl ? new Set(Array.from(filterEl.querySelectorAll('.tr-fs:checked')).map((c) => c.value)) : null;
+  const inDate = (d0) => {
+    if (!from && !to) return true;
+    const d = d0 ? String(d0).slice(0, 10) : '';
+    if (!d) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  };
+  let teachers = trTeachers;
+  if (sel) teachers = teachers.filter((t) => sel.has(t.schoolId || '—'));
+
+  return teachers.map((t) => {
+    const passed = trStudents.filter((s) => s.teacherId === t.id && s.final && s.final.passed && inDate(s.final.approvedAt));
+    const productivity = t.circleType ? computeProductivity(t.circleType, passed) : 0;
+    const tier = t.circleType ? matchTier(t.circleType, productivity, trTiers) : null;
+    return { t, productivity, tier, basis: t.circleType ? circleBasis(t.circleType) : '', passedCount: passed.length };
+  });
+}
+
+function paintTeacherRewards() {
+  trView = computeTeacherRows();
+  const total = trView.reduce((sum, r) => sum + (r.tier && r.tier.action === 'حافز' ? Number(r.tier.amount) || 0 : 0), 0);
+  const totalEl = content().querySelector('#tr_total');
+  if (totalEl) totalEl.textContent = `إجمالي الحوافز: ${total} ريال (${trView.length})`;
+  const tb = content().querySelector('#tr_body');
+  if (!tb) return;
+  const schoolName = (id) => { const s = cache.schools.find((x) => x.id === id); return s ? s.name : '-'; };
+  tb.innerHTML = trView.length ? trView.map((r, i) => {
+    const perf = r.tier ? r.tier.level : '—';
+    const perfColor = !r.tier ? 'text-slate-400' : (r.tier.action === 'حافز' ? 'text-emerald-600' : (r.tier.action === 'تنبيه' ? 'text-amber-600' : 'text-red-600'));
+    const reward = !r.t.circleType ? '<span class="text-amber-600 text-xs">حدّد نوع الحلقة</span>'
+      : (r.tier && r.tier.action === 'حافز' ? `<span class="font-bold text-primary">${r.tier.amount} ريال</span>` : `<span class="text-xs ${perfColor}">${escapeHtml(r.tier ? r.tier.action : '-')}</span>`);
+    return `<tr>
+      <td class="text-slate-500">${i + 1}</td>
+      <td class="font-bold text-secondary">${escapeHtml(r.t.name)}</td>
+      <td class="text-xs">${escapeHtml(schoolName(r.t.schoolId))}</td>
+      <td class="text-xs">${escapeHtml(circleLabel(r.t.circleType) || '—')}</td>
+      <td class="font-bold text-emerald-600">${r.t.circleType ? r.productivity + (r.basis === 'juz' ? ' جزء' : ' طالب') : '-'}</td>
+      <td class="text-xs font-bold ${perfColor}">${escapeHtml(perf)}</td>
+      <td>${reward}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="7" class="text-center py-8 text-slate-400">لا يوجد معلمون مطابقون</td></tr>';
+}
+
+function teacherRewardsReport(rows) {
+  if (!rows.length) { toast.info('لا توجد بيانات', 'لا يوجد معلمون مطابقون للتصفية.'); return; }
+  const schoolName = (id) => { const s = cache.schools.find((x) => x.id === id); return s ? s.name : '-'; };
+  const ok = openReport({
+    title: 'مكافآت المعلمين',
+    subtitle: 'الإنتاجية والأداء والحافز حسب لائحة الإنتاجية',
+    fileName: 'مكافآت المعلمين',
+    columns: [
+      { label: 'م', get: (r, i) => i + 1 },
+      { label: 'المعلم/ة', get: (r) => r.t.name },
+      { label: 'المدرسة', get: (r) => schoolName(r.t.schoolId) },
+      { label: 'نوع الحلقة', get: (r) => circleLabel(r.t.circleType) || '—' },
+      { label: 'الإنتاجية', get: (r) => (r.t.circleType ? r.productivity + (r.basis === 'juz' ? ' جزء' : ' طالب') : '-') },
+      { label: 'الأداء', get: (r) => (r.tier ? r.tier.level : '—') },
+      { label: 'الحافز (ريال)', get: (r) => (r.tier && r.tier.action === 'حافز' ? r.tier.amount : (r.tier ? r.tier.action : '-')) },
+    ],
+    rows,
+    footNote: 'إجمالي الحوافز: ' + rows.reduce((s, r) => s + (r.tier && r.tier.action === 'حافز' ? Number(r.tier.amount) || 0 : 0), 0) + ' ريال',
   });
   if (!ok) toast.error('تعذّر فتح النافذة', 'اسمح بالنوافذ المنبثقة.');
 }

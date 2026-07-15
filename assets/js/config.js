@@ -36,7 +36,8 @@ export const COLLECTIONS = {
   SETTINGS: 'settings',
   RESULTS_HISTORY: 'resultsHistory',   // سجلات النتائج السابقة (استيراد كبير)
   RESULT_BATCHES: 'resultBatches',     // بيانات الدفعات (اسم/فصل/مدارس/عدد)
-  REWARDS: 'rewards',                  // جدول الجوائز المالية (قابل للتعديل)
+  REWARDS: 'rewards',                  // جدول جوائز الطلاب المالية (قابل للتعديل)
+  TEACHER_REWARDS: 'teacherRewards',   // لائحة حوافز المعلمين (الأداء بالإنتاجية)
   AUDIT_LOG: 'auditLog',
   CERT_TEMPLATE: 'certificateTemplate',
 };
