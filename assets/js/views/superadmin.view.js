@@ -18,7 +18,8 @@ import { reopenExam } from '../services/exams.service.js';
 import { mountCertificateEditor } from '../components/certificate-editor.js';
 import { openReport } from '../components/report.js';
 import { statGrid, statusBadge } from '../components/ui-blocks.js';
-import { escapeHtml, partsCount } from '../core/helpers.js';
+import { escapeHtml, partsCount, hasValue, gradeText } from '../core/helpers.js';
+import { passingScoreFor } from '../services/exams.service.js';
 import * as toast from '../core/toast.js';
 
 let root, session;
@@ -26,9 +27,11 @@ let cache = { users: [], students: [], schools: [], levels: [] };
 let rwWinnersAll = [];   // مكافآت الطلاب (كل الناجحين)
 let rwWinnersView = [];  // المعروض بعد التصفية بالمدرسة
 let trTeachers = [], trStudents = [], trTiers = [], trView = [];  // مكافآت المعلمين
+let repStudents = [], repView = [];  // التقارير (المختبَرون)
 
 const TABS = [
   { id: 'overview', label: 'نظرة عامة', icon: 'dashboard' },
+  { id: 'reports', label: 'التقارير', icon: 'analytics' },
   { id: 'users', label: 'المستخدمون', icon: 'group' },
   { id: 'schools', label: 'المدارس', icon: 'domain' },
   { id: 'levels', label: 'المستويات', icon: 'menu_book' },
@@ -67,6 +70,7 @@ const loading = () => (content().innerHTML = '<div class="text-center py-12 text
 async function renderTab(tab) {
   loading();
   if (tab === 'overview') return renderOverview();
+  if (tab === 'reports') return renderReports();
   if (tab === 'users') return renderUsers();
   if (tab === 'schools') return renderSchools();
   if (tab === 'levels') return renderLevels();
@@ -704,6 +708,213 @@ function rewardsReport(winners) {
     footNote: 'إجمالي المكافآت: ' + winners.reduce((s, x) => s + (Number(x.r.amount) || 0), 0) + ' ريال',
   });
   if (!ok) toast.error('تعذّر فتح النافذة', 'اسمح بالنوافذ المنبثقة.');
+}
+
+/* --------------------------- التقارير --------------------------- */
+const GRADES = ['ممتاز', 'جيد جداً', 'جيد', 'مقبول', 'راسب'];
+const GRADE_COLOR = { 'ممتاز': 'emerald', 'جيد جداً': 'lime', 'جيد': 'amber', 'مقبول': 'orange', 'راسب': 'red' };
+const isPassed = (s) => !!(s.final && s.final.passed);
+const gradeOf = (s) => (isPassed(s) ? gradeText(Number(s.final.score), passingScoreFor(s.examLevel)) : 'راسب');
+
+async function renderReports() {
+  const [students, schools] = await Promise.all([getAllStudents(), getSchools()]);
+  cache.schools = schools;
+  repStudents = students.filter((s) => s.final && hasValue(s.final.score)); // المختبَرون (له نتيجة نهائية)
+
+  const smap = new Map();
+  repStudents.forEach((s) => { const sc = schools.find((x) => x.id === s.schoolId); smap.set(s.schoolId || '—', sc ? sc.name : (s.schoolName || '—')); });
+  const schoolChips = [...smap.entries()].map(([id, name]) => `
+    <label class="school-check inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer text-xs" style="border-color:rgba(30,77,43,0.16);background:rgba(255,255,255,0.6);">
+      <input type="checkbox" class="rep-fs" value="${escapeHtml(id)}" checked style="width:1rem;height:1rem;accent-color:#1E4D2B;">
+      <span class="font-bold text-slate-700">${escapeHtml(name)}</span>
+    </label>`).join('');
+
+  content().innerHTML = `
+    <div class="space-y-6">
+      <div id="rep_cards"></div>
+
+      <div class="section-card">
+        <div class="border-b border-[#e7edf3] px-6 py-4 flex flex-wrap justify-between items-center gap-3">
+          <div><h2 class="text-lg font-bold">تقرير المختبَرين</h2><p class="text-xs text-slate-500 mt-0.5">المتقدمون للاختبار النهائي ونتائجهم.</p></div>
+          <button id="rep_export" class="btn-primary px-4 py-2 text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">summarize</span> تصدير قائمة المختبَرين</button>
+        </div>
+        <div class="px-6 py-3 border-b border-[#eef2f7] bg-slate-50/60 space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold text-slate-600 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">event</span> من:</span>
+            <input type="date" id="rep_from" class="rounded-lg border border-[#e7edf3] px-2 py-1 text-xs">
+            <span class="text-xs font-bold text-slate-600">إلى:</span>
+            <input type="date" id="rep_to" class="rounded-lg border border-[#e7edf3] px-2 py-1 text-xs">
+            <span class="text-xs font-bold text-slate-600 mr-2 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">grade</span> التقدير:</span>
+            <select id="rep_grade" class="rounded-lg border border-[#e7edf3] px-2 py-1 text-xs">
+              <option value="all">الكل</option>${GRADES.map((g) => `<option value="${g}">${g}</option>`).join('')}
+            </select>
+            <button id="rep_dclear" class="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full font-bold">مسح</button>
+          </div>
+          ${smap.size ? `<div>
+            <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+              <span class="text-xs font-bold text-slate-600 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">filter_alt</span> تصفية بالمدرسة</span>
+              <div class="flex gap-2"><button id="rep_all" class="text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-bold">الكل</button><button id="rep_none" class="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full font-bold">لا شيء</button></div>
+            </div>
+            <div id="rep_filter" class="flex flex-wrap gap-2">${schoolChips}</div>
+          </div>` : ''}
+          <div id="rep_dist" class="flex flex-wrap gap-2"></div>
+        </div>
+        <div class="overflow-x-auto"><table class="data-table" style="min-width:900px;">
+          <thead><tr><th>م</th><th>الطالب/ة</th><th>المدرسة</th><th>المعلم/ة</th><th>المستوى</th><th>الدرجة</th><th>التقدير</th><th>النتيجة</th></tr></thead>
+          <tbody id="rep_body"></tbody>
+        </table></div>
+      </div>
+
+      <details class="section-card group">
+        <summary class="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between px-6 py-4">
+          <div><h2 class="text-lg font-bold">مقارنة المدارس</h2><p class="text-xs text-slate-500 mt-0.5">عدد المختبَرين والناجحين ونسبة النجاح لكل مدرسة. — اضغط للعرض</p></div>
+          <span class="material-symbols-outlined text-slate-400 transition-transform group-open:rotate-180">expand_more</span>
+        </summary>
+        <div class="px-6 py-3 flex justify-end"><button id="rep_export_schools" class="btn-primary px-3 py-1.5 text-xs flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">download</span> تصدير المقارنة</button></div>
+        <div class="overflow-x-auto border-t border-[#e7edf3]"><table class="data-table" style="min-width:640px;">
+          <thead><tr><th>المدرسة</th><th>المختبَرون</th><th>الناجحون</th><th>الراسبون</th><th>نسبة النجاح</th><th>متوسط الدرجة</th></tr></thead>
+          <tbody id="rep_schools"></tbody>
+        </table></div>
+      </details>
+    </div>`;
+
+  const bind = (id, ev, fn) => { const el = content().querySelector(id); if (el) el.addEventListener(ev, fn); };
+  bind('#rep_from', 'change', paintReports); bind('#rep_to', 'change', paintReports);
+  bind('#rep_grade', 'change', paintReports);
+  bind('#rep_dclear', 'click', () => { ['#rep_from', '#rep_to'].forEach((s) => { const e = content().querySelector(s); if (e) e.value = ''; }); const g = content().querySelector('#rep_grade'); if (g) g.value = 'all'; paintReports(); });
+  const fEl = content().querySelector('#rep_filter');
+  if (fEl) {
+    fEl.addEventListener('change', paintReports);
+    bind('#rep_all', 'click', () => { fEl.querySelectorAll('.rep-fs').forEach((c) => (c.checked = true)); paintReports(); });
+    bind('#rep_none', 'click', () => { fEl.querySelectorAll('.rep-fs').forEach((c) => (c.checked = false)); paintReports(); });
+  }
+  bind('#rep_export', 'click', reportsExport);
+  bind('#rep_export_schools', 'click', reportsSchoolsExport);
+
+  paintReports();
+}
+
+/** المجموعة الأساسية بعد تصفية المدرسة + التاريخ. */
+function reportsBase() {
+  const fEl = content().querySelector('#rep_filter');
+  const from = (content().querySelector('#rep_from') || {}).value || '';
+  const to = (content().querySelector('#rep_to') || {}).value || '';
+  const sel = fEl ? new Set(Array.from(fEl.querySelectorAll('.rep-fs:checked')).map((c) => c.value)) : null;
+  const inDate = (d0) => {
+    if (!from && !to) return true;
+    const d = d0 ? String(d0).slice(0, 10) : '';
+    if (!d) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  };
+  return repStudents.filter((s) => (!sel || sel.has(s.schoolId || '—')) && inDate(s.final && s.final.approvedAt));
+}
+
+function paintReports() {
+  const base = reportsBase();
+  const passed = base.filter(isPassed);
+  const failed = base.length - passed.length;
+  const rate = base.length ? Math.round((passed.length / base.length) * 100) : 0;
+  const nums = passed.map((s) => Number(s.final.score)).filter((n) => !isNaN(n));
+  const avg = nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0;
+
+  content().querySelector('#rep_cards').innerHTML = statGrid([
+    { label: 'المختبَرون', value: base.length, icon: 'groups', color: 'emerald' },
+    { label: 'الناجحون', value: passed.length, icon: 'task_alt', color: 'green' },
+    { label: 'الراسبون', value: failed, icon: 'cancel', color: 'red' },
+    { label: 'نسبة النجاح', value: rate + '%', icon: 'trending_up', color: 'lime' },
+    { label: 'متوسط درجة الناجحين', value: avg, icon: 'grade', color: 'amber' },
+  ], 5);
+
+  // توزيع التقديرات
+  const dist = {}; GRADES.forEach((g) => (dist[g] = 0));
+  base.forEach((s) => { const g = gradeOf(s); dist[g] = (dist[g] || 0) + 1; });
+  content().querySelector('#rep_dist').innerHTML = '<span class="text-xs font-bold text-slate-600 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">donut_small</span> التقديرات:</span>' +
+    GRADES.map((g) => `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-${GRADE_COLOR[g]}-50 text-${GRADE_COLOR[g]}-700 border border-${GRADE_COLOR[g]}-100">${g}: ${dist[g]}</span>`).join('');
+
+  // الجدول (بعد تصفية التقدير)
+  const gradeSel = (content().querySelector('#rep_grade') || {}).value || 'all';
+  repView = gradeSel === 'all' ? base : base.filter((s) => gradeOf(s) === gradeSel);
+  const schoolName = (id) => { const s = cache.schools.find((x) => x.id === id); return s ? s.name : '-'; };
+  const tb = content().querySelector('#rep_body');
+  tb.innerHTML = repView.length ? repView.map((s, i) => {
+    const g = gradeOf(s);
+    return `<tr>
+      <td class="text-slate-500">${i + 1}</td>
+      <td class="font-bold text-secondary">${escapeHtml(s.name)}</td>
+      <td class="text-xs">${escapeHtml(schoolName(s.schoolId) || s.schoolName || '-')}</td>
+      <td class="text-xs">${escapeHtml(s.teacherName || '-')}</td>
+      <td class="text-xs">${escapeHtml(s.examLevel)}</td>
+      <td class="font-bold text-emerald-600">${escapeHtml(String(s.final.score))}</td>
+      <td class="text-xs"><span class="px-2 py-0.5 rounded-full bg-${GRADE_COLOR[g]}-50 text-${GRADE_COLOR[g]}-700 text-[11px] font-bold">${g}</span></td>
+      <td>${isPassed(s) ? '<span class="text-emerald-600 text-xs font-bold">ناجح</span>' : '<span class="text-red-600 text-xs font-bold">راسب</span>'}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="8" class="text-center py-8 text-slate-400">لا توجد نتائج مطابقة</td></tr>';
+
+  // مقارنة المدارس
+  const bySchool = new Map();
+  base.forEach((s) => {
+    const k = s.schoolId || '—';
+    if (!bySchool.has(k)) bySchool.set(k, { name: schoolName(s.schoolId) || s.schoolName || '-', tested: 0, passed: 0, sum: 0, cnt: 0 });
+    const o = bySchool.get(k); o.tested++;
+    if (isPassed(s)) { o.passed++; const n = Number(s.final.score); if (!isNaN(n)) { o.sum += n; o.cnt++; } }
+  });
+  const sb = content().querySelector('#rep_schools');
+  const arr = [...bySchool.values()].sort((a, b) => b.tested - a.tested);
+  sb.innerHTML = arr.length ? arr.map((o) => `<tr>
+    <td class="font-bold text-secondary text-xs">${escapeHtml(o.name)}</td>
+    <td>${o.tested}</td>
+    <td class="text-emerald-600 font-bold">${o.passed}</td>
+    <td class="text-red-600">${o.tested - o.passed}</td>
+    <td class="font-bold">${o.tested ? Math.round((o.passed / o.tested) * 100) : 0}%</td>
+    <td>${o.cnt ? Math.round(o.sum / o.cnt) : 0}</td>
+  </tr>`).join('') : '<tr><td colspan="6" class="text-center py-6 text-slate-400">لا توجد بيانات</td></tr>';
+}
+
+function reportsExport() {
+  if (!repView.length) { toast.info('لا توجد بيانات', 'لا يوجد مختبَرون مطابقون.'); return; }
+  const schoolName = (id) => { const s = cache.schools.find((x) => x.id === id); return s ? s.name : '-'; };
+  openReport({
+    title: 'تقرير المختبَرين', subtitle: 'المتقدمون للاختبار النهائي ونتائجهم', fileName: 'تقرير المختبرين',
+    columns: [
+      { label: 'م', get: (s, i) => i + 1 },
+      { label: 'الطالب/ة', get: (s) => s.name },
+      { label: 'المدرسة', get: (s) => schoolName(s.schoolId) || s.schoolName || '-' },
+      { label: 'المعلم/ة', get: (s) => s.teacherName || '-' },
+      { label: 'المستوى', get: (s) => s.examLevel },
+      { label: 'الدرجة', get: (s) => s.final.score },
+      { label: 'التقدير', get: (s) => gradeOf(s) },
+      { label: 'النتيجة', get: (s) => (isPassed(s) ? 'ناجح' : 'راسب') },
+    ],
+    rows: repView,
+  });
+}
+
+function reportsSchoolsExport() {
+  const base = reportsBase();
+  const schoolName = (id) => { const s = cache.schools.find((x) => x.id === id); return s ? s.name : '-'; };
+  const m = new Map();
+  base.forEach((s) => {
+    const k = s.schoolId || '—';
+    if (!m.has(k)) m.set(k, { name: schoolName(s.schoolId) || s.schoolName || '-', tested: 0, passed: 0, sum: 0, cnt: 0 });
+    const o = m.get(k); o.tested++;
+    if (isPassed(s)) { o.passed++; const n = Number(s.final.score); if (!isNaN(n)) { o.sum += n; o.cnt++; } }
+  });
+  const rows = [...m.values()].sort((a, b) => b.tested - a.tested);
+  if (!rows.length) { toast.info('لا توجد بيانات', ''); return; }
+  openReport({
+    title: 'مقارنة المدارس', subtitle: 'المختبَرون والناجحون ونسبة النجاح لكل مدرسة', fileName: 'مقارنة المدارس',
+    columns: [
+      { label: 'المدرسة', get: (o) => o.name },
+      { label: 'المختبَرون', get: (o) => o.tested },
+      { label: 'الناجحون', get: (o) => o.passed },
+      { label: 'الراسبون', get: (o) => o.tested - o.passed },
+      { label: 'نسبة النجاح', get: (o) => (o.tested ? Math.round((o.passed / o.tested) * 100) : 0) + '%' },
+      { label: 'متوسط الدرجة', get: (o) => (o.cnt ? Math.round(o.sum / o.cnt) : 0) },
+    ],
+    rows,
+  });
 }
 
 /* --------------------------- مكافآت المعلمين --------------------------- */
