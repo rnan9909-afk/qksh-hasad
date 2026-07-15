@@ -26,6 +26,9 @@ async function boot() {
     return;
   }
 
+  // تهيئة إشعارات الدفع (تحديث الاشتراك أو إظهار زر التفعيل)
+  import('./services/push.service.js').then((m) => m.initPush()).catch(() => {});
+
   const root = byId('viewRoot');
   try {
     switch (session.role) {

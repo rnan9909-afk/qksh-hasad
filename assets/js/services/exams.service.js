@@ -11,6 +11,10 @@ import { COLLECTIONS, CONFIG } from '../config.js';
 import { getSession } from '../core/session.js';
 import { isItqanLevel } from '../core/helpers.js';
 import { logEvent } from './audit.service.js';
+import { notify } from './push.service.js';
+
+const DASH = 'dashboard.html';
+const recips = (st) => [st.teacherId, st.nationalId].filter(Boolean);
 
 /** درجة النجاح حسب المستوى. */
 export function passingScoreFor(level) {
@@ -56,6 +60,7 @@ export async function sendExamRequest(id) {
   }
   await db().update(COLLECTIONS.STUDENTS, id, { status: 'awaiting_schedule', nomination: 'pending', updatedAt: new Date().toISOString() });
   await logEvent('exam.request.send', `إرسال طلب اختبار للطالب: ${st.name}`, { targetType: 'student', targetId: id });
+  notify({ title: 'طالب بحاجة للاختبار', body: `${st.name} — ${st.schoolName || ''}`, roles: ['exam_supervisor', 'super_admin'], schoolId: st.schoolId, url: DASH });
   return { success: true };
 }
 
@@ -65,6 +70,7 @@ export async function nominateStudent(id) {
   if (!st) return { success: false, message: 'السجل غير موجود' };
   await db().update(COLLECTIONS.STUDENTS, id, { nomination: 'nominated', updatedAt: new Date().toISOString() });
   await logEvent('exam.nominate', `ترشيح الطالب للاختبار: ${st.name}`, { targetType: 'student', targetId: id });
+  notify({ title: 'تم ترشيح الطالب', body: `${st.name} — تم ترشيحه للاختبار`, roles: ['admin', 'super_admin'], userIds: recips(st), schoolId: st.schoolId, url: DASH });
   return { success: true };
 }
 
@@ -79,6 +85,7 @@ export async function excludeStudent(id) {
     updatedAt: new Date().toISOString(),
   });
   await logEvent('exam.exclude', `استبعاد الطالب: ${st.name}`, { targetType: 'student', targetId: id });
+  notify({ title: 'تم استبعاد الطالب', body: `${st.name}`, roles: ['admin', 'super_admin'], userIds: recips(st), schoolId: st.schoolId, url: DASH });
   return { success: true };
 }
 
@@ -99,6 +106,7 @@ export async function scheduleExam(id, date, time) {
     schedule, status: 'scheduled', updatedAt: new Date().toISOString(),
   });
   await logEvent('exam.schedule', `تحديد موعد اختبار للطالب: ${st.name} (${date} ${time || ''})`, { targetType: 'student', targetId: id });
+  notify({ title: 'تم تحديد موعد الاختبار', body: `${st.name} — ${date}${time ? ' ' + time : ''}`, roles: ['admin', 'super_admin'], userIds: recips(st), schoolId: st.schoolId, url: DASH });
   return { success: true };
 }
 
@@ -132,6 +140,8 @@ export async function approveFinalExam(id, result) {
   };
   await db().update(COLLECTIONS.STUDENTS, id, patch);
   await logEvent('exam.final.approve', `اعتماد النتيجة النهائية للطالب: ${st.name} (${result.score})`, { targetType: 'student', targetId: id });
+  if (pass) notify({ title: 'تم إتمام الاختبار وإصدار الشهادة', body: `${st.name} — ناجح (${result.score})`, roles: ['admin', 'super_admin', 'exam_supervisor'], userIds: recips(st), schoolId: st.schoolId, url: DASH });
+  else notify({ title: 'انتهى اختبار الطالب', body: `${st.name} — لم يجتز`, roles: ['admin', 'super_admin'], userIds: recips(st), schoolId: st.schoolId, url: DASH });
   return { success: true, passed: pass };
 }
 

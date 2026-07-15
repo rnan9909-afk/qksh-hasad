@@ -25,6 +25,12 @@ export const CONFIG = {
 
   // مدة الجلسة (8 ساعات)
   SESSION_TTL: 8 * 60 * 60 * 1000,
+
+  // إشعارات الدفع (Web Push)
+  PUSH: {
+    VAPID_PUBLIC: 'BG9-0DrIprMIxVyzYOGw3T06xjVzidYl235bkpywSWBUJyBW3PpBGPxgXgfQ7v0-o9pdNNzBcq5e5-FcybZEzGU',
+    FUNCTION_URL: 'https://iimmbjoffccasiicwdqr.supabase.co/functions/v1/notify',
+  },
 };
 
 /** أسماء المجموعات/الجداول — مصدر واحد للحقيقة. */
@@ -38,6 +44,8 @@ export const COLLECTIONS = {
   RESULT_BATCHES: 'resultBatches',     // بيانات الدفعات (اسم/فصل/مدارس/عدد)
   REWARDS: 'rewards',                  // جدول جوائز الطلاب المالية (قابل للتعديل)
   TEACHER_REWARDS: 'teacherRewards',   // لائحة حوافز المعلمين (الأداء بالإنتاجية)
+  PUSH_SUBS: 'pushSubscriptions',      // اشتراكات إشعارات الدفع
+  NOTIFICATIONS: 'notifications',      // سجل الإشعارات
   AUDIT_LOG: 'auditLog',
   CERT_TEMPLATE: 'certificateTemplate',
 };

@@ -1,5 +1,31 @@
-/* sw.js — Service Worker لتطبيق حصاد (شبكة أولاً مع عودة للتخزين عند انقطاع الاتصال) */
-const CACHE = 'hasad-v2';
+/* sw.js — Service Worker لتطبيق حصاد (شبكة أولاً + إشعارات دفع) */
+const CACHE = 'hasad-v3';
+
+// استقبال إشعار دفع وعرضه
+self.addEventListener('push', (e) => {
+  let data = { title: 'حصاد', body: '', url: '/' };
+  try { data = { ...data, ...(e.data ? e.data.json() : {}) }; } catch { if (e.data) data.body = e.data.text(); }
+  e.waitUntil(self.registration.showNotification(data.title || 'حصاد', {
+    body: data.body || '',
+    icon: 'assets/images/icon-192.png',
+    badge: 'assets/images/icon-192.png',
+    dir: 'rtl',
+    lang: 'ar',
+    data: { url: data.url || '/' },
+    vibrate: [80, 40, 80],
+  }));
+});
+
+// فتح التطبيق عند الضغط على الإشعار
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) { if ('focus' in c) return c.focus(); }
+    if (self.clients.openWindow) return self.clients.openWindow(target);
+  })());
+});
 
 self.addEventListener('install', () => self.skipWaiting());
 
