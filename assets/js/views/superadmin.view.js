@@ -566,15 +566,24 @@ async function renderRewards() {
             <button id="rw_report" class="btn-primary px-4 py-2 text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">summarize</span> معاينة / تصدير</button>
           </div>
         </div>
-        ${schoolMap.size ? `<div class="px-6 py-3 border-b border-[#eef2f7] bg-slate-50/60">
-          <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
-            <span class="text-xs font-bold text-slate-600 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">filter_alt</span> تصفية بالمدرسة (يمكن اختيار أكثر من مدرسة)</span>
-            <div class="flex gap-2">
-              <button id="rw_all" class="text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-bold">تحديد الكل</button>
-              <button id="rw_none" class="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full font-bold">إلغاء الكل</button>
-            </div>
+        ${schoolMap.size ? `<div class="px-6 py-3 border-b border-[#eef2f7] bg-slate-50/60 space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold text-slate-600 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">event</span> التاريخ من:</span>
+            <input type="date" id="rw_from" class="rounded-lg border border-[#e7edf3] px-2 py-1 text-xs">
+            <span class="text-xs font-bold text-slate-600">إلى:</span>
+            <input type="date" id="rw_to" class="rounded-lg border border-[#e7edf3] px-2 py-1 text-xs">
+            <button id="rw_dclear" class="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full font-bold">مسح التاريخ</button>
           </div>
-          <div id="rw_filter" class="flex flex-wrap gap-2">${schoolChips}</div>
+          <div>
+            <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+              <span class="text-xs font-bold text-slate-600 flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-primary">filter_alt</span> تصفية بالمدرسة (يمكن اختيار أكثر من مدرسة)</span>
+              <div class="flex gap-2">
+                <button id="rw_all" class="text-xs text-primary bg-primary/10 px-2.5 py-1 rounded-full font-bold">تحديد الكل</button>
+                <button id="rw_none" class="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full font-bold">إلغاء الكل</button>
+              </div>
+            </div>
+            <div id="rw_filter" class="flex flex-wrap gap-2">${schoolChips}</div>
+          </div>
         </div>` : ''}
         <div class="overflow-x-auto"><table class="data-table" style="min-width:820px;">
           <thead><tr><th>م</th><th>الطالب/ة</th><th>المدرسة</th><th>المستوى</th><th>الأجزاء</th><th>الدرجة</th><th>التقدير</th><th>مقدار الجائزة</th></tr></thead>
@@ -606,6 +615,13 @@ async function renderRewards() {
     filterEl.addEventListener('change', paintRewards);
     content().querySelector('#rw_all').addEventListener('click', () => { filterEl.querySelectorAll('.rw-fs').forEach((c) => (c.checked = true)); paintRewards(); });
     content().querySelector('#rw_none').addEventListener('click', () => { filterEl.querySelectorAll('.rw-fs').forEach((c) => (c.checked = false)); paintRewards(); });
+    content().querySelector('#rw_from').addEventListener('change', paintRewards);
+    content().querySelector('#rw_to').addEventListener('change', paintRewards);
+    content().querySelector('#rw_dclear').addEventListener('click', () => {
+      content().querySelector('#rw_from').value = '';
+      content().querySelector('#rw_to').value = '';
+      paintRewards();
+    });
   }
   content().querySelector('#rw_report').addEventListener('click', () => rewardsReport(rwWinnersView));
   content().querySelector('#rw_cfg').addEventListener('click', async (e) => {
@@ -627,6 +643,18 @@ function paintRewards() {
   if (filterEl) {
     const sel = new Set(Array.from(filterEl.querySelectorAll('.rw-fs:checked')).map((c) => c.value));
     list = rwWinnersAll.filter((x) => sel.has(rwKey(x.s)));
+  }
+  // تصفية بنطاق التاريخ (تاريخ اعتماد النتيجة النهائية)
+  const from = (content().querySelector('#rw_from') || {}).value || '';
+  const to = (content().querySelector('#rw_to') || {}).value || '';
+  if (from || to) {
+    list = list.filter((x) => {
+      const d = (x.s.final && x.s.final.approvedAt) ? String(x.s.final.approvedAt).slice(0, 10) : '';
+      if (!d) return false;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
   }
   rwWinnersView = list;
   const total = list.reduce((sum, x) => sum + (Number(x.r.amount) || 0), 0);
