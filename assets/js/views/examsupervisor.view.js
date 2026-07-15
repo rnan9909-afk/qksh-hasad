@@ -243,14 +243,16 @@ async function openSchedule(s) {
     title: 'تحديد موعد الاختبار',
     html: `<div class="flex flex-col gap-3 text-right">
       <div class="text-sm text-slate-500">الطالب: <b>${escapeHtml(s.name)}</b></div>
-      <label class="flex flex-col gap-1 text-sm font-bold">التاريخ<input type="date" id="sc_date" class="field-input" value="${escapeHtml((s.schedule && s.schedule.date) || '')}"></label>
-      <label class="flex flex-col gap-1 text-sm font-bold">الوقت<input type="time" id="sc_time" class="field-input" value="${escapeHtml((s.schedule && s.schedule.time) || '')}"></label>
+      <label class="flex flex-col gap-1.5 text-sm font-bold">تاريخ الاختبار
+        <input type="date" id="sc_date" dir="ltr" value="${escapeHtml((s.schedule && s.schedule.date) || '')}"
+          style="width:100%;border:1.5px solid rgba(30,77,43,0.18);border-radius:1rem;padding:.8rem 1rem;text-align:center;font-weight:700;font-size:1.05rem;color:#1E4D2B;background:rgba(255,255,255,0.9);box-shadow:inset 0 1px 2px rgba(20,51,29,0.04);cursor:pointer;">
+      </label>
     </div>`,
     showCancelButton: true, confirmButtonText: 'حفظ الموعد', cancelButtonText: 'إلغاء', confirmButtonColor: '#1E4D2B',
     preConfirm: () => {
       const date = document.getElementById('sc_date').value;
       if (!date) { window.Swal.showValidationMessage('التاريخ مطلوب'); return false; }
-      return { date, time: document.getElementById('sc_time').value };
+      return { date, time: '' };
     },
   });
   if (!res.isConfirmed) return;
