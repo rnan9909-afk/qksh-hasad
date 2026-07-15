@@ -47,6 +47,12 @@ export async function getBatches() {
   return list.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 }
 
+/** جلب سجلات دفعة معيّنة. */
+export async function getBatchRecords(batchId) {
+  const rows = await db().list(COLLECTIONS.RESULTS_HISTORY, { filters: [['batchId', '==', batchId]] });
+  return rows;
+}
+
 /** إضافة دفعة نتائج جديدة (استيراد كبير + ربط بمدارس). */
 export async function addBatch({ label, schools, rows }) {
   if (!rows || !rows.length) throw new Error('لا توجد بيانات صالحة للاستيراد');

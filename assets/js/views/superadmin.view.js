@@ -11,7 +11,7 @@ import { getSchools, createSchool, updateSchool, deleteSchool } from '../service
 import { getExamLevels, createLevel, updateLevel, deleteLevel } from '../services/levels.service.js';
 import { getVariableOptions, addVariableOption, updateVariableOption, removeVariableOption } from '../services/settings.service.js';
 import { getAuditLog } from '../services/audit.service.js';
-import { getBatches, addBatch, deleteBatch, parseResultsPaste } from '../services/results-history.service.js';
+import { getBatches, addBatch, deleteBatch, parseResultsPaste, getBatchRecords } from '../services/results-history.service.js';
 import { reopenExam } from '../services/exams.service.js';
 import { mountCertificateEditor } from '../components/certificate-editor.js';
 import { statGrid, statusBadge } from '../components/ui-blocks.js';
@@ -432,11 +432,16 @@ async function renderHistory() {
         <td class="text-xs"><div class="flex flex-wrap gap-1">${(b.schools || []).map((id) => `<span class="bg-primary/10 text-primary px-2 py-0.5 rounded-full">${escapeHtml(schoolName(id))}</span>`).join('') || '-'}</div></td>
         <td class="font-bold text-emerald-600">${b.count || 0}</td>
         <td class="text-xs text-slate-500">${escapeHtml(String(b.createdAt || '').slice(0, 10))}</td>
-        <td><div class="flex justify-center"><button data-rhdel="${escapeHtml(b.id)}" class="text-red-500 bg-red-50 p-1.5 rounded" title="حذف الدفعة"><span class="material-symbols-outlined text-[18px]">delete</span></button></div></td>
+        <td><div class="flex justify-center gap-1.5">
+          <button data-rhview="${escapeHtml(b.id)}" data-label="${escapeHtml(b.label || '')}" class="text-primary bg-primary/10 p-1.5 rounded" title="معاينة / تصدير"><span class="material-symbols-outlined text-[18px]">visibility</span></button>
+          <button data-rhdel="${escapeHtml(b.id)}" class="text-red-500 bg-red-50 p-1.5 rounded" title="حذف الدفعة"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+        </div></td>
       </tr>`).join('') : '<tr><td colspan="5" class="text-center py-8 text-slate-400">لا توجد دفعات — اضغط «إضافة / تحديث دفعة»</td></tr>'}</tbody>
     </table></div>`;
   content().querySelector('#rh_add').addEventListener('click', historyForm);
   content().querySelector('#rh_body').addEventListener('click', async (e) => {
+    const vw = e.target.closest('[data-rhview]');
+    if (vw) return previewBatch(vw.dataset.rhview, vw.dataset.label);
     const dl = e.target.closest('[data-rhdel]'); if (!dl) return;
     const ok = await toast.confirm('حذف الدفعة؟', 'ستُحذف كل سجلاتها نهائياً.', { confirmText: 'نعم، حذف', danger: true });
     if (!ok) return;
@@ -444,6 +449,59 @@ async function renderHistory() {
     try { await deleteBatch(dl.dataset.rhdel); toast.close(); renderHistory(); }
     catch (er) { toast.close(); toast.error('خطأ', er.message); }
   });
+}
+
+/** معاينة سجلات دفعة في نافذة مستقلة مع تصدير Excel / PDF. */
+async function previewBatch(batchId, label) {
+  toast.showLoading('جاري تجهيز المعاينة...');
+  let rows;
+  try { rows = await getBatchRecords(batchId); }
+  catch (e) { toast.close(); return toast.error('خطأ', e.message); }
+  toast.close();
+  rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ar'));
+
+  const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const title = label || 'سجل النتائج';
+  const bodyRows = rows.map((r, i) => `<tr>
+    <td>${i + 1}</td><td>${esc(r.name)}</td><td>${esc(r.parts)}</td><td>${esc(r.score)}</td><td>${esc(r.term)}</td><td>${esc(r.nationalId)}</td>
+  </tr>`).join('');
+
+  const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8">
+    <title>${esc(title)}</title>
+    <style>
+      body{font-family:'Segoe UI','Cairo',Tahoma,sans-serif;margin:0;padding:24px;color:#0f172a;background:#f8fafc;}
+      .bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+      h1{font-size:1.2rem;margin:0;color:#1E4D2B;}
+      .count{color:#64748b;font-size:.9rem;}
+      button{background:#1E4D2B;color:#fff;border:none;border-radius:9999px;padding:.55rem 1.1rem;font-weight:700;cursor:pointer;font-family:inherit;margin-inline-start:8px;}
+      button.g{background:#0f766e;}
+      table{width:100%;border-collapse:collapse;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+      th,td{border:1px solid #e2e8f0;padding:8px 10px;text-align:center;font-size:.85rem;}
+      th{background:#1E4D2B;color:#fff;position:sticky;top:0;}
+      tr:nth-child(even) td{background:#f8fafc;}
+      @media print{.bar button{display:none;} body{padding:0;background:#fff;} th{background:#1E4D2B!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+    </style></head><body>
+    <div class="bar">
+      <div><h1>${esc(title)}</h1><div class="count">عدد السجلات: ${rows.length}</div></div>
+      <div>
+        <button class="g" onclick="exportExcel()">⬇ تصدير Excel</button>
+        <button onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+      </div>
+    </div>
+    <table id="tbl"><thead><tr><th>م</th><th>الاسم</th><th>الأجزاء</th><th>الدرجة</th><th>الفصل</th><th>رقم الهوية</th></tr></thead>
+    <tbody>${bodyRows || '<tr><td colspan="6">لا توجد سجلات</td></tr>'}</tbody></table>
+    <script>
+      function exportExcel(){
+        var html='<html dir="rtl"><head><meta charset="utf-8"></head><body>'+document.getElementById('tbl').outerHTML+'</body></html>';
+        var blob=new Blob(['\\ufeff'+html],{type:'application/vnd.ms-excel'});
+        var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+        a.download=${JSON.stringify(title)}+'.xls';a.click();
+      }
+    <\/script></body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { toast.error('تعذّر فتح النافذة', 'يرجى السماح بالنوافذ المنبثقة لهذا الموقع.'); return; }
+  win.document.open(); win.document.write(html); win.document.close();
 }
 
 async function historyForm() {
