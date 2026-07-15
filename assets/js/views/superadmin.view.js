@@ -12,8 +12,10 @@ import { getExamLevels, createLevel, updateLevel, deleteLevel } from '../service
 import { getVariableOptions, addVariableOption, updateVariableOption, removeVariableOption } from '../services/settings.service.js';
 import { getAuditLog } from '../services/audit.service.js';
 import { getBatches, addBatch, deleteBatch, parseResultsPaste, getBatchRecords } from '../services/results-history.service.js';
+import { getRewards, updateRewardAmount, computeReward } from '../services/rewards.service.js';
 import { reopenExam } from '../services/exams.service.js';
 import { mountCertificateEditor } from '../components/certificate-editor.js';
+import { openReport } from '../components/report.js';
 import { statGrid, statusBadge } from '../components/ui-blocks.js';
 import { escapeHtml } from '../core/helpers.js';
 import * as toast from '../core/toast.js';
@@ -29,6 +31,7 @@ const TABS = [
   { id: 'settings', label: 'الإعدادات', icon: 'settings' },
   { id: 'certificate', label: 'قالب الشهادة', icon: 'workspace_premium' },
   { id: 'history', label: 'سجل النتائج', icon: 'database' },
+  { id: 'rewards', label: 'جوائز الطلاب', icon: 'payments' },
   { id: 'exams', label: 'الاختبارات', icon: 'fact_check' },
   { id: 'audit', label: 'سجل الأحداث', icon: 'history' },
 ];
@@ -65,6 +68,7 @@ async function renderTab(tab) {
   if (tab === 'settings') return renderSettings();
   if (tab === 'certificate') return mountCertificateEditor(content());
   if (tab === 'history') return renderHistory();
+  if (tab === 'rewards') return renderRewards();
   if (tab === 'exams') return renderExams();
   if (tab === 'audit') return renderAudit();
 }
@@ -451,7 +455,7 @@ async function renderHistory() {
   });
 }
 
-/** معاينة سجلات دفعة في نافذة مستقلة مع تصدير Excel / PDF. */
+/** معاينة سجلات دفعة في نافذة تقرير مع تصدير Excel / PDF. */
 async function previewBatch(batchId, label) {
   toast.showLoading('جاري تجهيز المعاينة...');
   let rows;
@@ -460,48 +464,21 @@ async function previewBatch(batchId, label) {
   toast.close();
   rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ar'));
 
-  const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const title = label || 'سجل النتائج';
-  const bodyRows = rows.map((r, i) => `<tr>
-    <td>${i + 1}</td><td>${esc(r.name)}</td><td>${esc(r.parts)}</td><td>${esc(r.score)}</td><td>${esc(r.term)}</td><td>${esc(r.nationalId)}</td>
-  </tr>`).join('');
-
-  const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8">
-    <title>${esc(title)}</title>
-    <style>
-      body{font-family:'Segoe UI','Cairo',Tahoma,sans-serif;margin:0;padding:24px;color:#0f172a;background:#f8fafc;}
-      .bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
-      h1{font-size:1.2rem;margin:0;color:#1E4D2B;}
-      .count{color:#64748b;font-size:.9rem;}
-      button{background:#1E4D2B;color:#fff;border:none;border-radius:9999px;padding:.55rem 1.1rem;font-weight:700;cursor:pointer;font-family:inherit;margin-inline-start:8px;}
-      button.g{background:#0f766e;}
-      table{width:100%;border-collapse:collapse;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);}
-      th,td{border:1px solid #e2e8f0;padding:8px 10px;text-align:center;font-size:.85rem;}
-      th{background:#1E4D2B;color:#fff;position:sticky;top:0;}
-      tr:nth-child(even) td{background:#f8fafc;}
-      @media print{.bar button{display:none;} body{padding:0;background:#fff;} th{background:#1E4D2B!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
-    </style></head><body>
-    <div class="bar">
-      <div><h1>${esc(title)}</h1><div class="count">عدد السجلات: ${rows.length}</div></div>
-      <div>
-        <button class="g" onclick="exportExcel()">⬇ تصدير Excel</button>
-        <button onclick="window.print()">🖨 طباعة / حفظ PDF</button>
-      </div>
-    </div>
-    <table id="tbl"><thead><tr><th>م</th><th>الاسم</th><th>الأجزاء</th><th>الدرجة</th><th>الفصل</th><th>رقم الهوية</th></tr></thead>
-    <tbody>${bodyRows || '<tr><td colspan="6">لا توجد سجلات</td></tr>'}</tbody></table>
-    <script>
-      function exportExcel(){
-        var html='<html dir="rtl"><head><meta charset="utf-8"></head><body>'+document.getElementById('tbl').outerHTML+'</body></html>';
-        var blob=new Blob(['\\ufeff'+html],{type:'application/vnd.ms-excel'});
-        var a=document.createElement('a');a.href=URL.createObjectURL(blob);
-        a.download=${JSON.stringify(title)}+'.xls';a.click();
-      }
-    <\/script></body></html>`;
-
-  const win = window.open('', '_blank');
-  if (!win) { toast.error('تعذّر فتح النافذة', 'يرجى السماح بالنوافذ المنبثقة لهذا الموقع.'); return; }
-  win.document.open(); win.document.write(html); win.document.close();
+  const ok = openReport({
+    title: label || 'سجل النتائج',
+    subtitle: 'قاعدة النتائج السابقة',
+    fileName: label || 'سجل النتائج',
+    columns: [
+      { label: 'م', get: (r, i) => i + 1 },
+      { label: 'الاسم', key: 'name' },
+      { label: 'الأجزاء', key: 'parts' },
+      { label: 'الدرجة', key: 'score' },
+      { label: 'الفصل', key: 'term' },
+      { label: 'رقم الهوية', key: 'nationalId' },
+    ],
+    rows,
+  });
+  if (!ok) toast.error('تعذّر فتح النافذة', 'يرجى السماح بالنوافذ المنبثقة لهذا الموقع.');
 }
 
 async function historyForm() {
@@ -555,6 +532,89 @@ async function historyForm() {
     const r = await addBatch(res.value);
     toast.close(); toast.success('تم الاستيراد', `أُضيفت ${r.count} سجلاً.`); renderHistory();
   } catch (err) { toast.close(); toast.error('خطأ', err.message); }
+}
+
+/* --------------------------- جوائز الطلاب --------------------------- */
+async function renderRewards() {
+  const [rewards, students] = await Promise.all([getRewards(), getAllStudents()]);
+  cache.students = students;
+  const winners = students
+    .filter((s) => ['result_approved', 'certificate_ready'].includes(s.status) && s.final && s.final.score)
+    .map((s) => ({ s, r: computeReward(s.examLevel, s.final.score, rewards) }))
+    .filter((x) => x.r);
+  const total = winners.reduce((sum, x) => sum + (Number(x.r.amount) || 0), 0);
+
+  content().innerHTML = `
+    <div class="space-y-6">
+      <div class="section-card">
+        <div class="flex flex-wrap justify-between items-center gap-3 border-b border-[#e7edf3] px-6 py-4">
+          <div><h2 class="text-lg font-bold">مكافآت الطلاب</h2><p class="text-xs text-slate-500 mt-0.5">تُحتسب تلقائياً للطلاب الناجحين حسب المستوى والدرجة.</p></div>
+          <div class="flex gap-2 items-center flex-wrap">
+            <span class="text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full">الإجمالي: ${total} ريال</span>
+            <button id="rw_report" class="btn-primary px-4 py-2 text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">summarize</span> معاينة / تصدير</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto"><table class="data-table" style="min-width:820px;">
+          <thead><tr><th>م</th><th>الطالب/ة</th><th>المدرسة</th><th>المستوى</th><th>الأجزاء</th><th>الدرجة</th><th>التقدير</th><th>مقدار الجائزة</th></tr></thead>
+          <tbody>${winners.length ? winners.map((x, i) => `<tr>
+            <td class="text-slate-500">${i + 1}</td>
+            <td class="font-bold text-secondary">${escapeHtml(x.s.name)}</td>
+            <td class="text-xs">${escapeHtml(x.s.schoolName || '-')}</td>
+            <td class="text-xs">${escapeHtml(x.s.examLevel)}</td>
+            <td class="text-xs">${escapeHtml(x.s.parts || '-')}</td>
+            <td class="font-bold text-emerald-600">${escapeHtml(String(x.s.final.score))}</td>
+            <td class="text-xs">${escapeHtml(x.r.grade)}</td>
+            <td class="font-bold text-primary">${x.r.amount} ريال</td>
+          </tr>`).join('') : '<tr><td colspan="8" class="text-center py-8 text-slate-400">لا توجد مكافآت بعد — تظهر تلقائياً بعد اجتياز الطلاب</td></tr>'}</tbody>
+        </table></div>
+      </div>
+
+      <div class="section-card">
+        <div class="border-b border-[#e7edf3] px-6 py-4"><h2 class="text-lg font-bold">جدول الجوائز</h2><p class="text-xs text-slate-500 mt-0.5">المبالغ قابلة للتعديل (اضغط ✎).</p></div>
+        <div class="overflow-x-auto"><table class="data-table" style="min-width:640px;">
+          <thead><tr><th>المستوى</th><th>الجزء</th><th>التقدير</th><th>النسبة</th><th>مقدار الجائزة</th><th>تعديل</th></tr></thead>
+          <tbody id="rw_cfg">${rewards.map((r) => `<tr>
+            <td class="font-bold text-secondary">${escapeHtml(r.levelLabel)}</td>
+            <td>${escapeHtml(String(r.juz))}</td>
+            <td class="text-xs">${escapeHtml(r.grade)}</td>
+            <td class="text-xs text-slate-500">${escapeHtml(r.percentLabel)}</td>
+            <td class="font-bold text-primary">${r.amount} ريال</td>
+            <td><button data-rwedit="${escapeHtml(r.id)}" data-amt="${r.amount}" class="text-emerald-600 bg-emerald-50 p-1.5 rounded" title="تعديل المبلغ"><span class="material-symbols-outlined text-[18px]">edit</span></button></td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>
+    </div>`;
+
+  content().querySelector('#rw_report').addEventListener('click', () => rewardsReport(winners));
+  content().querySelector('#rw_cfg').addEventListener('click', async (e) => {
+    const ed = e.target.closest('[data-rwedit]'); if (!ed) return;
+    const val = await toast.prompt('تعديل مبلغ الجائزة', { label: 'المبلغ (ريال)', value: String(ed.dataset.amt) });
+    if (val == null) return;
+    toast.showLoading('...');
+    try { await updateRewardAmount(ed.dataset.rwedit, val); toast.close(); renderRewards(); }
+    catch (er) { toast.close(); toast.error('خطأ', er.message); }
+  });
+}
+
+function rewardsReport(winners) {
+  const ok = openReport({
+    title: 'مكافآت الطلاب المالية',
+    subtitle: 'الطلاب الناجحون ومقدار مكافأة كل منهم',
+    fileName: 'مكافآت الطلاب',
+    columns: [
+      { label: 'م', get: (x, i) => i + 1 },
+      { label: 'الطالب/ة', get: (x) => x.s.name },
+      { label: 'المدرسة', get: (x) => x.s.schoolName || '-' },
+      { label: 'المستوى', get: (x) => x.s.examLevel },
+      { label: 'الأجزاء', get: (x) => x.s.parts || '-' },
+      { label: 'الدرجة', get: (x) => x.s.final.score },
+      { label: 'التقدير', get: (x) => x.r.grade },
+      { label: 'مقدار الجائزة (ريال)', get: (x) => x.r.amount },
+    ],
+    rows: winners,
+    footNote: 'إجمالي المكافآت: ' + winners.reduce((s, x) => s + (Number(x.r.amount) || 0), 0) + ' ريال',
+  });
+  if (!ok) toast.error('تعذّر فتح النافذة', 'اسمح بالنوافذ المنبثقة.');
 }
 
 /* --------------------------- الاختبارات --------------------------- */

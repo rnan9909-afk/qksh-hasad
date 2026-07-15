@@ -36,6 +36,7 @@ export const COLLECTIONS = {
   SETTINGS: 'settings',
   RESULTS_HISTORY: 'resultsHistory',   // سجلات النتائج السابقة (استيراد كبير)
   RESULT_BATCHES: 'resultBatches',     // بيانات الدفعات (اسم/فصل/مدارس/عدد)
+  REWARDS: 'rewards',                  // جدول الجوائز المالية (قابل للتعديل)
   AUDIT_LOG: 'auditLog',
   CERT_TEMPLATE: 'certificateTemplate',
 };
