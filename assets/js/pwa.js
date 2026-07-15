@@ -1,9 +1,15 @@
 /* pwa.js — تسجيل Service Worker وزر تثبيت التطبيق */
 (function () {
-  // تسجيل الـ Service Worker
+  // تسجيل الـ Service Worker مع تحديث تلقائي عند نشر نسخة جديدة
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => { /* تجاهل */ });
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => { /* تجاهل */ });
+    });
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded) return;
+      reloaded = true;
+      location.reload();
     });
   }
 

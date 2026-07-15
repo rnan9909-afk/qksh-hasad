@@ -1,5 +1,5 @@
 /* sw.js — Service Worker لتطبيق حصاد (شبكة أولاً مع عودة للتخزين عند انقطاع الاتصال) */
-const CACHE = 'hasad-v1';
+const CACHE = 'hasad-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -19,7 +19,8 @@ self.addEventListener('fetch', (e) => {
 
   e.respondWith((async () => {
     try {
-      const fresh = await fetch(req);
+      // no-cache: يُجبر المتصفح على التحقق من الخادم فتظهر التحديثات فوراً
+      const fresh = await fetch(req, { cache: 'no-cache' });
       const cache = await caches.open(CACHE);
       cache.put(req, fresh.clone());
       return fresh;
