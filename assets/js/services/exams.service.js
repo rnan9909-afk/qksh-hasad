@@ -45,6 +45,7 @@ export async function approveInternalExam(id, result) {
     updatedAt: new Date().toISOString(),
   });
   await logEvent('exam.internal.approve', `اعتماد الاختبار الداخلي للطالب: ${st.name} (${result.score})`, { targetType: 'student', targetId: id });
+  notify({ title: 'تم اعتماد الاختبار الداخلي', body: `${st.name} — ${result.score} — جاهز لإرسال طلب الاختبار`, roles: ['admin', 'super_admin'], schoolId: st.schoolId, url: DASH });
   return { success: true };
 }
 
