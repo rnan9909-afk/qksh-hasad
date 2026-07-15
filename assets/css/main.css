@@ -1,0 +1,238 @@
+/* main.css — الأساسيات والثيم والرسوم المتحركة */
+
+/* خط النظام: ثمانية Serif Display */
+@font-face {
+  font-family: 'Thmanyah';
+  src: url('../fonts/thmanyahserifdisplay-Bold.otf') format('opentype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* تطبيق الخط على كل العناصر عدا أيقونات Material Symbols */
+*:not(.material-symbols-outlined):not([class*="material-symbols"]) {
+  font-family: 'Thmanyah', 'Cairo', 'Almarai', sans-serif;
+}
+
+:root {
+  /* ألوان هوية حصاد */
+  --primary: #1E4D2B;
+  --primary-hover: #163a21;
+  --secondary: #14331d;
+  --accent: #C8992E;
+  --gold: #C8992E;
+  --gold-soft: #E4C583;
+  --bg-light: #eef3ec;
+  --bg-dark: #0f1a12;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Cairo', 'Almarai', sans-serif;
+  background:
+    radial-gradient(1200px 800px at 50% -10%, #f4f7f1, #eef3ec 60%),
+    linear-gradient(135deg, #eef3ec 0%, #f6f4ee 100%);
+  background-attachment: fixed;
+  color: #0d141b;
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* إضاءات الخلفية (توهّج أخضر/ذهبي) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(600px 600px at 12% 8%, rgba(30, 77, 43, 0.22), transparent 60%),
+    radial-gradient(640px 640px at 88% 92%, rgba(200, 153, 46, 0.22), transparent 62%),
+    radial-gradient(480px 480px at 82% 12%, rgba(200, 153, 46, 0.14), transparent 60%),
+    radial-gradient(520px 520px at 10% 90%, rgba(30, 77, 43, 0.14), transparent 60%);
+  filter: blur(38px);
+  animation: glow-drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes glow-drift {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(0, -2%, 0) scale(1.05); }
+}
+
+/* تأثير زجاجي مشترك */
+.glass {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 8px 32px -10px rgba(20, 51, 29, 0.22);
+}
+
+/* أشكال طافية ناعمة في الخلفية (شبيهة بالتصميم العصري) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(closest-side, rgba(255, 255, 255, 0.75), transparent) 6% 86% / 340px 340px no-repeat,
+    radial-gradient(closest-side, rgba(255, 255, 255, 0.6), transparent) 94% 10% / 420px 420px no-repeat,
+    radial-gradient(closest-side, rgba(200, 153, 46, 0.14), transparent) 88% 78% / 280px 280px no-repeat,
+    radial-gradient(closest-side, rgba(30, 77, 43, 0.10), transparent) 4% 20% / 300px 300px no-repeat;
+}
+
+/* أزرار عصرية ناعمة (حركة لطيفة عند التمرير) */
+button {
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+}
+button:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.04); }
+button:not(:disabled):active { transform: translateY(0) scale(.985); }
+
+/* شارات الحالة والحبوب: زوايا ناعمة */
+.badge-status { box-shadow: 0 1px 3px rgba(20, 51, 29, 0.06); }
+
+/* الأزرار الرئيسية (متاحة في كل الصفحات بما فيها الدخول) */
+.btn-primary {
+  background: linear-gradient(135deg, #256137 0%, #1E4D2B 60%, #17381f 100%);
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px -8px rgba(30, 77, 43, 0.55);
+  transition: box-shadow .18s, filter .18s, transform .16s;
+}
+.btn-primary:hover { filter: brightness(1.06); box-shadow: 0 12px 26px -8px rgba(30, 77, 43, 0.6); }
+.btn-primary:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+
+.btn-gold {
+  background: linear-gradient(135deg, #d8a83c 0%, #C8992E 60%, #a97f22 100%);
+  color: #fff; border: none; border-radius: 9999px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 8px 20px -8px rgba(200, 153, 46, 0.55);
+  transition: box-shadow .18s, filter .18s;
+}
+.btn-gold:hover { filter: brightness(1.06); }
+
+/* تبويب المشرف العام النشط (أخضر مضمون) */
+.sa-tab { transition: background .15s, color .15s, box-shadow .15s; }
+.sa-tab-active {
+  background: linear-gradient(135deg, #256137, #1E4D2B 60%, #17381f) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px -8px rgba(30, 77, 43, 0.5);
+}
+
+/* قائمة توكيل المدارس للمشرف: تظليل أخضر عند التحديد */
+.school-check { transition: background .16s, border-color .16s, box-shadow .16s; }
+.school-check:hover { border-color: rgba(30, 77, 43, 0.35) !important; }
+.school-check:has(.u-school-cb:checked) {
+  background: linear-gradient(135deg, rgba(37, 97, 55, 0.14), rgba(30, 77, 43, 0.08)) !important;
+  border-color: rgba(30, 77, 43, 0.5) !important;
+  box-shadow: 0 4px 12px -6px rgba(30, 77, 43, 0.3);
+}
+
+/* ===== نوافذ SweetAlert2 (زجاجية عصرية خضراء) ===== */
+.swal2-popup {
+  border-radius: 1.75rem !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 24px 60px -18px rgba(20, 51, 29, 0.35) !important;
+  font-family: 'Thmanyah', 'Cairo', sans-serif !important;
+}
+.swal2-title { color: #1E4D2B !important; font-weight: 800 !important; }
+.swal2-html-container { color: #334155 !important; }
+.swal2-actions { gap: .75rem; margin-top: 1.25rem !important; }
+
+.swal2-confirm {
+  background: linear-gradient(135deg, #256137, #1E4D2B 60%, #17381f) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 8px 20px -8px rgba(30, 77, 43, 0.55) !important;
+  padding: .62rem 1.7rem !important;
+  font-weight: 700 !important;
+  transition: filter .18s, transform .16s !important;
+}
+.swal2-confirm:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
+.swal2-cancel {
+  background: rgba(255, 255, 255, 0.75) !important;
+  color: #475569 !important;
+  border: 1px solid rgba(30, 77, 43, 0.16) !important;
+  border-radius: 9999px !important;
+  padding: .62rem 1.5rem !important;
+  font-weight: 700 !important;
+}
+.swal2-cancel:hover { background: #fff !important; }
+
+.swal2-input, .swal2-select, .swal2-textarea {
+  border-radius: 1rem !important;
+  border: 1px solid rgba(30, 77, 43, 0.14) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: inset 0 1px 2px rgba(20, 51, 29, 0.03) !important;
+  transition: border-color .18s, box-shadow .18s;
+}
+.swal2-input:focus, .swal2-select:focus, .swal2-textarea:focus {
+  border-color: #1E4D2B !important;
+  box-shadow: 0 0 0 3px rgba(30, 77, 43, 0.15) !important;
+}
+.swal2-validation-message { border-radius: 0.75rem; }
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}
+
+/* إظهار/إخفاء */
+.hidden-area {
+  display: none !important;
+}
+
+/* زخرفة إسلامية للخلفية */
+.bg-islamic-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231E4D2B' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* شريط تقدّم متحرك */
+.progress-striped {
+  background-image: linear-gradient(45deg, rgba(255, 255, 255, .15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .15) 50%, rgba(255, 255, 255, .15) 75%, transparent 75%, transparent);
+  background-size: 1rem 1rem;
+  animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+  0% { background-position: 1rem 0; }
+  100% { background-position: 0 0; }
+}
+
+/* صندوق تنبيه متوهّج (موعد الاختبار) */
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: rgba(239, 68, 68, 0.5); }
+  70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 1); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0.5); }
+}
+
+.glowing-red-box {
+  animation: pulse-glow 2s infinite;
+  border: 2px solid #ef4444;
+}
+
+/* دوران أيقونات التحميل */
+@keyframes spin { to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* نافذة Bootstrap شفافة (نستخدم تصميمنا الداخلي) */
+.modal-content {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.modal-body { padding: 0; }
+
+/* اتجاه سهم الـ select */
+.form-select { background-position: left 0.75rem center; }

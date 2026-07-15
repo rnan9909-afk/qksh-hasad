@@ -1,0 +1,83 @@
+/* dashboard.css — تخطيط لوحة التحكم والترويسة */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(30, 77, 43, 0.12);
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 4px 20px -8px rgba(20, 51, 29, 0.18);
+}
+
+.app-main {
+  flex: 1;
+  padding: 2rem 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .app-main { padding: 2rem; }
+}
+
+.btn-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  height: 2.5rem;
+  padding: 0 1.1rem;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  background: rgba(254, 242, 242, 0.8);
+  color: #dc2626;
+  font-size: .875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-logout:hover { background: #fee2e2; }
+
+/* أزرار رئيسية */
+/* أنماط الأزرار الرئيسية معرّفة في main.css لتتوفّر على كل الصفحات */
+
+.section-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 8px 32px -12px rgba(20, 51, 29, 0.2);
+  overflow: hidden;
+}
+
+/* رأس القسم الملوّن */
+.section-head-dark {
+  background: var(--secondary);
+  color: #fff;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* بطاقة نتيجة الطالب */
+.result-card {
+  background: rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-radius: 24px;
+  box-shadow: 0 20px 45px -14px rgba(20, 51, 29, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}

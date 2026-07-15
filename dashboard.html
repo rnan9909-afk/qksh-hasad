@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>نظام سجل الاختبارات</title>
+
+  <!-- PWA: الأيقونة والتثبيت -->
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/images/apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#1E4D2B" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="حصاد" />
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+  <link href="https://fonts.googleapis.com" rel="preconnect" />
+  <link crossorigin href="https://fonts.gstatic.com" rel="preconnect" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+  <script id="tailwind-config">
+    tailwind.config = {
+      theme: { extend: { colors: {
+        primary: '#1E4D2B', 'primary-hover': '#163a21', secondary: '#14331d', accent: '#C8992E',
+        gold: '#C8992E', 'gold-soft': '#E4C583', 'background-light': '#eef3ec',
+      } } },
+    };
+  </script>
+
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <link rel="stylesheet" href="assets/css/forms.css" />
+  <link rel="stylesheet" href="assets/css/tables.css" />
+  <link rel="stylesheet" href="assets/css/dashboard.css" />
+</head>
+
+<body class="bg-background-light text-[#0d141b] min-h-screen flex flex-col">
+  <div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+    <header class="app-header">
+      <div class="flex items-center gap-3">
+        <img id="headerLogo" src="" class="h-12 w-auto" alt="حصاد" />
+        <div>
+          <h2 class="text-[#0d141b] text-base sm:text-lg font-bold leading-tight">نظام سجل الاختبارات</h2>
+          <p id="welcomeMsg" class="text-xs text-slate-500 font-medium">مرحباً: ...</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="roleBadge" class="hidden sm:inline-flex px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary"></span>
+        <button id="btnLogout" class="btn-logout">
+          <span class="material-symbols-outlined text-[20px] ml-1">logout</span> خروج
+        </button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <div id="viewRoot"></div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script type="module" src="assets/js/app.js"></script>
+  <script src="assets/js/pwa.js"></script>
+</body>
+
+</html>
