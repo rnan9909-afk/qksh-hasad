@@ -73,6 +73,15 @@
   .form-grid-3 { grid-template-columns: repeat(3, 1fr); }
 }
 
+/* السؤال المحروق: إطار وخلفية حمراء بارزة */
+.em-burned {
+  background: #fef2f2 !important;
+  border: 2px solid #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+.em-burned .eval-score-btn { opacity: .55; }
+#examModalRoot button:disabled { opacity: .4; cursor: not-allowed; }
+
 /* إخفاء مدخلات التقييم في مكانها (يمنع قفز التمرير للأعلى عند الاختيار) */
 .eval-choice { position: relative; display: block; }
 .eval-choice > input {

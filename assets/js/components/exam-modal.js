@@ -142,8 +142,11 @@ function renderQuestions() {
   const c = root.querySelector('#em_questions');
   let html = '';
   for (let i = 0; i < engine.settings.qCount; i++) {
-    html += `<div class="bg-white rounded-[20px] p-5 mb-4 border border-slate-100" id="em_qcard_${i}">
-      <div class="flex items-center justify-end mb-5 gap-2"><span class="font-bold text-[15px]">السؤال ${getArabicOrdinal(i + 1)}</span><div class="w-3 h-3 rounded-full bg-[#1E4D2B]"></div></div>
+    html += `<div class="bg-white rounded-[20px] p-5 mb-4 border border-slate-100 transition-colors" id="em_qcard_${i}">
+      <div class="flex items-center justify-end mb-5 gap-2">
+        <span id="em_burn_${i}" class="hidden-area text-xs font-bold text-red-700 bg-red-100 border border-red-300 px-2.5 py-0.5 rounded-full">محروق 🔥</span>
+        <span class="font-bold text-[15px]">السؤال ${getArabicOrdinal(i + 1)}</span><div class="w-3 h-3 rounded-full bg-[#1E4D2B]"></div>
+      </div>
       <div class="flex flex-row flex-wrap items-center justify-between gap-3">
         ${counter(i, 'talqin', 'تلقين', 'text-[#1E4D2B]')}
         ${counter(i, 'tanbih', 'تنبيه', 'text-amber-600')}
@@ -210,20 +213,21 @@ function onChange(e) {
 }
 
 function updateLocks() {
+  const locked = engine.isTajweedLocked();
   engine.state.questions.forEach((q, i) => {
     const burned = engine.isQuestionBurned(i);
     const bt = root.querySelector(`#em_plus_talqin_${i}`);
     const bn = root.querySelector(`#em_plus_tanbih_${i}`);
+    const bj = root.querySelector(`#em_plus_tajweed_${i}`);
     const card = root.querySelector(`#em_qcard_${i}`);
+    const badge = root.querySelector(`#em_burn_${i}`);
+    // سؤال محروق: تعطيل كل البنود (تلقين/تنبيه/تجويد)
     if (bt) bt.disabled = burned;
     if (bn) bn.disabled = burned;
-    if (card) {
-      card.classList.toggle('bg-red-50', burned);
-      card.classList.toggle('border-red-200', burned);
-    }
+    if (bj) bj.disabled = burned || locked;
+    if (card) card.classList.toggle('em-burned', burned);
+    if (badge) badge.classList.toggle('hidden-area', !burned);
   });
-  const locked = engine.isTajweedLocked();
-  root.querySelectorAll('.em-tajweed-plus').forEach((b) => (b.disabled = locked));
 }
 
 function updateScore() {

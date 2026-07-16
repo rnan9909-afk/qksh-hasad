@@ -144,16 +144,15 @@ export class EvaluationEngine {
     const q = this.state.questions[idx];
     if (!q) return false;
 
+    // سؤال محروق: يُمنع أي تقييم إضافي في كل البنود (تلقين/تنبيه/تجويد)
+    if (delta > 0 && this._isBurned(q)) return false;
+
     if (delta > 0 && type === 'tajweed') {
       let totalTajweedErrors = 0;
       this.state.questions.forEach((x) => (totalTajweedErrors += x.tajweed));
       if (totalTajweedErrors * this.settings.tajweedDed >= this.settings.maxTajweedDeduction) {
         return false;
       }
-    }
-
-    if (delta > 0 && (type === 'talqin' || type === 'tanbih')) {
-      if (this._isBurned(q)) return false;
     }
 
     let newVal = q[type] + delta;
