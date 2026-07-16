@@ -35,6 +35,7 @@ export class EvaluationEngine {
       failLimitConsecutive: 99,
       isItqan: false,
       maxTajweedDeduction: 15,
+      passScore: 70,
     };
   }
 
@@ -42,7 +43,39 @@ export class EvaluationEngine {
    * تهيئة الإعدادات حسب المستوى وعدد الأسئلة، وإعادة ضبط الحالة.
    * (يقابل configureEvaluationSettings + تهيئة الحالة في openEvaluationModal)
    */
-  configure(levelStr, dbQCount) {
+  configure(levelStr, dbQCount, cfg = null) {
+    const s = (cfg && cfg.qValue != null && cfg.qValue !== '')
+      ? this._fromConfig(cfg, dbQCount)
+      : this._computeHardcoded(levelStr, dbQCount);
+    this.settings = s;
+    this.state.questions = [];
+    for (let i = 0; i < s.qCount; i++) this.state.questions.push({ talqin: 0, tanbih: 0, tajweed: 0 });
+    this.state.tajweedTheory = s.hasTheory ? 5 : 0;
+    this.state.committeeScore = 0;
+  }
+
+  /** بناء الإعدادات من إعدادات التقييم المخزّنة بالمستوى (قابلة للتعديل). */
+  _fromConfig(cfg, dbQCount) {
+    const s = this._defaultSettings();
+    const n = (v, d) => (v === '' || v == null || isNaN(v) ? d : Number(v));
+    s.qCount = parseInt(dbQCount, 10) || n(cfg.qCount, 5);
+    s.qValue = n(cfg.qValue, 16);
+    s.tajweedPot = n(cfg.tajweedPot, 15);
+    s.talqinDed = n(cfg.talqinDed, 2);
+    s.tanbihDed = n(cfg.tanbihDed, 0.25);
+    s.tajweedDed = n(cfg.tajweedDed, 0.25);
+    s.hasTheory = !!cfg.hasTheory;
+    s.burnLimit = n(cfg.burnLimit, 5);
+    s.failLimitTotal = n(cfg.failLimitTotal, 2);
+    s.failLimitConsecutive = n(cfg.failLimitConsecutive, 99);
+    s.maxTajweedDeduction = n(cfg.maxTajweedDeduction, 15);
+    s.isItqan = !!cfg.isItqan;
+    s.passScore = n(cfg.passScore, s.isItqan ? 80 : 70);
+    return s;
+  }
+
+  /** المنطق المبرمَج الأصلي (احتياطي إن لم توجد إعدادات مخزّنة بالمستوى). */
+  _computeHardcoded(levelStr, dbQCount) {
     const s = this._defaultSettings();
     const lvl = String(levelStr).trim();
     s.isItqan = false;
@@ -59,6 +92,7 @@ export class EvaluationEngine {
       s.burnLimit = 2.5;
       s.failLimitTotal = 3;
       s.failLimitConsecutive = 2;
+      s.passScore = 80;
     } else {
       s.qCount = dbQCount;
       if (s.qCount === 5) {
@@ -99,15 +133,7 @@ export class EvaluationEngine {
       }
     }
 
-    this.settings = s;
-
-    // إعادة ضبط الحالة
-    this.state.questions = [];
-    for (let i = 0; i < s.qCount; i++) {
-      this.state.questions.push({ talqin: 0, tanbih: 0, tajweed: 0 });
-    }
-    this.state.tajweedTheory = s.hasTheory ? 5 : 0;
-    this.state.committeeScore = 0;
+    return s;
   }
 
   /**
@@ -212,11 +238,8 @@ export class EvaluationEngine {
       if (s.hasTheory) final += this.state.tajweedTheory;
       final = Math.ceil(final);
 
-      if (s.isItqan) {
-        if (final < 80) isAutoFail = true;
-      } else if (final < 70) {
-        isAutoFail = true;
-      }
+      const passScore = s.passScore || (s.isItqan ? 80 : 70);
+      if (final < passScore) isAutoFail = true;
     } else {
       final = 0;
     }

@@ -11,6 +11,15 @@ import { logEvent } from './audit.service.js';
 const TEXT_FIELDS = ['level', 'parts', 'note', 'q3', 'q2', 'q1', 'qHalf'];
 const NUM_FIELDS = ['ajza', 'examPartsCount', 'questionCount'];
 
+/** إعدادات التقييم الافتراضية لمستوى جديد. */
+export function defaultEvalCfg() {
+  return {
+    qValue: 16, tajweedPot: 15, talqinDed: 2, tanbihDed: 0.25, tajweedDed: 0.25,
+    hasTheory: true, burnLimit: 5, failLimitTotal: 2, failLimitConsecutive: 99,
+    maxTajweedDeduction: 15, isItqan: false, passScore: 70,
+  };
+}
+
 /** جلب كل المستويات. */
 export async function getExamLevels() {
   const rows = await db().list(COLLECTIONS.EXAM_LEVELS);
@@ -27,6 +36,7 @@ export async function getExamLevels() {
     q2: String(r.q2 || ''),
     q1: String(r.q1 || ''),
     qHalf: String(r.qHalf || ''),
+    evalCfg: (r.evalCfg && typeof r.evalCfg === 'object') ? r.evalCfg : {},
   }));
 }
 
@@ -43,7 +53,9 @@ function buildRecord(data) {
 export async function createLevel(data) {
   if (!data.level || !String(data.level).trim()) throw new Error('اسم المستوى مطلوب');
   const id = 'lvl_' + generateId();
-  await db().create(COLLECTIONS.EXAM_LEVELS, buildRecord(data), id);
+  const rec = buildRecord(data);
+  rec.evalCfg = data.evalCfg && typeof data.evalCfg === 'object' ? data.evalCfg : defaultEvalCfg();
+  await db().create(COLLECTIONS.EXAM_LEVELS, rec, id);
   await logEvent('level.create', `إضافة مستوى: ${data.level}`, { targetType: 'level', targetId: id });
   return { success: true, id };
 }
@@ -53,6 +65,7 @@ export async function updateLevel(id, patch) {
   for (const k of [...TEXT_FIELDS, ...NUM_FIELDS]) if (patch[k] !== undefined) clean[k] = patch[k];
   for (const k of NUM_FIELDS) if (clean[k] !== undefined) clean[k] = parseInt(clean[k], 10) || 0;
   if (clean.questionCount !== undefined && !clean.questionCount) clean.questionCount = 5;
+  if (patch.evalCfg !== undefined) clean.evalCfg = patch.evalCfg;
   await db().update(COLLECTIONS.EXAM_LEVELS, id, clean);
   await logEvent('level.update', `تعديل مستوى`, { targetType: 'level', targetId: id });
   return { success: true };

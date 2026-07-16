@@ -318,6 +318,9 @@ async function levelForm(existing = null) {
   const isEdit = !!existing;
   const g = (k) => (existing && existing[k] != null ? escapeHtml(existing[k]) : '');
   const n = (k, d) => (existing && existing[k] != null && existing[k] !== '' ? existing[k] : d);
+  const ec = (existing && existing.evalCfg) || {};
+  const ev = (k, d) => (ec[k] != null && ec[k] !== '' ? ec[k] : d);
+  const evb = (k, d) => (ec[k] != null ? !!ec[k] : d);
   const res = await window.Swal.fire({
     title: isEdit ? 'تعديل مستوى' : 'إضافة مستوى',
     width: 640,
@@ -332,16 +335,43 @@ async function levelForm(existing = null) {
       <label class="flex flex-col gap-1 text-sm font-bold">سؤالين في<input id="l_q2" class="field-input" value="${g('q2')}"></label>
       <label class="flex flex-col gap-1 text-sm font-bold">سؤال في<input id="l_q1" class="field-input" value="${g('q1')}"></label>
       <label class="flex flex-col gap-1 text-sm font-bold sm:col-span-2">سؤال في كل جزئين<input id="l_qhalf" class="field-input" value="${g('qHalf')}"></label>
+
+      <details class="sm:col-span-2 mt-1 border border-slate-200 rounded-xl p-3" ${isEdit ? '' : 'open'}>
+        <summary class="cursor-pointer font-bold text-sm text-primary select-none flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">rule_settings</span> إعدادات التقييم (قواعد الدرجات والرسوب)</summary>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+          <label class="flex flex-col gap-1 text-xs font-bold">درجة السؤال الواحد<input id="ev_qValue" type="number" step="0.25" class="field-input" value="${ev('qValue', 16)}"></label>
+          <label class="flex flex-col gap-1 text-xs font-bold">درجة التجويد العملي (الكلية)<input id="ev_tajweedPot" type="number" step="0.25" class="field-input" value="${ev('tajweedPot', 15)}"></label>
+          <label class="flex flex-col gap-1 text-xs font-bold">خصم التلقين (لكل مرة)<input id="ev_talqinDed" type="number" step="0.25" class="field-input" value="${ev('talqinDed', 2)}"></label>
+          <label class="flex flex-col gap-1 text-xs font-bold">خصم التنبيه (لكل مرة)<input id="ev_tanbihDed" type="number" step="0.25" class="field-input" value="${ev('tanbihDed', 0.25)}"></label>
+          <label class="flex flex-col gap-1 text-xs font-bold">خصم خطأ التجويد (لكل مرة)<input id="ev_tajweedDed" type="number" step="0.25" class="field-input" value="${ev('tajweedDed', 0.25)}"></label>
+          <label class="flex flex-col gap-1 text-xs font-bold">حدّ حرق السؤال (عدد أخطاء التلقين)<input id="ev_burnLimit" type="number" step="0.5" class="field-input" value="${ev('burnLimit', 5)}"></label>
+          <label class="flex flex-col gap-1 text-xs font-bold">عدد الأسئلة المحروقة للرسوب<input id="ev_failTotal" type="number" class="field-input" value="${ev('failLimitTotal', 2)}"></label>
+          <label class="flex flex-col gap-1 text-xs font-bold">المحروقة المتتالية للرسوب<input id="ev_failCons" type="number" class="field-input" value="${ev('failLimitConsecutive', 99)}"></label>
+          <label class="flex flex-col gap-1 text-xs font-bold">أقصى خصم للتجويد<input id="ev_maxTaj" type="number" step="0.25" class="field-input" value="${ev('maxTajweedDeduction', 15)}"></label>
+          <label class="flex flex-col gap-1 text-xs font-bold">درجة النجاح<input id="ev_pass" type="number" class="field-input" value="${ev('passScore', 70)}"></label>
+          <label class="flex items-center gap-2 text-xs font-bold"><input id="ev_theory" type="checkbox" ${evb('hasTheory', true) ? 'checked' : ''} style="width:1.1rem;height:1.1rem;accent-color:#1E4D2B;"> يُحتسب التجويد النظري</label>
+          <label class="flex items-center gap-2 text-xs font-bold"><input id="ev_itqan" type="checkbox" ${evb('isItqan', false) ? 'checked' : ''} style="width:1.1rem;height:1.1rem;accent-color:#1E4D2B;"> نمط الإتقان (لجنة + حرق بالنقاط)</label>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2">مثال: «عدد الأسئلة المحروقة للرسوب = 1» يعني رسوب الطالب بحرق سؤال واحد. و«حدّ حرق السؤال = 5» يعني حرق السؤال عند 5 أخطاء تلقين.</p>
+      </details>
     </div>
     <p class="text-[11px] text-slate-400 mt-3 text-right">تنبيه: قيمة «المستوى» تُستخدم في احتساب الدرجة؛ استخدم <b>1</b> و<b>2</b> للمستويين الأول والثاني و<b>الإتقان</b> لاختبار الإتقان.</p>`,
     showCancelButton: true, confirmButtonText: 'حفظ', cancelButtonText: 'إلغاء', confirmButtonColor: '#1E4D2B',
     preConfirm: () => {
       const v = (id) => document.getElementById(id).value.trim();
+      const num = (id, d) => { const x = parseFloat(document.getElementById(id).value); return isNaN(x) ? d : x; };
       const d = {
         level: v('l_level'), note: v('l_note'),
         ajza: v('l_ajza'), examPartsCount: v('l_epc'),
         parts: v('l_parts'), questionCount: v('l_qc'),
         q3: v('l_q3'), q2: v('l_q2'), q1: v('l_q1'), qHalf: v('l_qhalf'),
+        evalCfg: {
+          qValue: num('ev_qValue', 16), tajweedPot: num('ev_tajweedPot', 15),
+          talqinDed: num('ev_talqinDed', 2), tanbihDed: num('ev_tanbihDed', 0.25), tajweedDed: num('ev_tajweedDed', 0.25),
+          burnLimit: num('ev_burnLimit', 5), failLimitTotal: num('ev_failTotal', 2), failLimitConsecutive: num('ev_failCons', 99),
+          maxTajweedDeduction: num('ev_maxTaj', 15), passScore: num('ev_pass', 70),
+          hasTheory: document.getElementById('ev_theory').checked, isItqan: document.getElementById('ev_itqan').checked,
+        },
       };
       if (!d.level) { window.Swal.showValidationMessage('حقل المستوى مطلوب'); return false; }
       return d;

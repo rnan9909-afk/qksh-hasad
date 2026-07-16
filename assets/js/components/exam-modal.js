@@ -103,7 +103,7 @@ export function openExamModal(student, { mode = 'internal', levels = [], onAppro
 
   const lvl = levels.find((x) => x.level == student.examLevel);
   const qCount = lvl ? lvl.questionCount || 5 : 5;
-  engine.configure(student.examLevel, qCount);
+  engine.configure(student.examLevel, qCount, lvl ? lvl.evalCfg : null);
   root.querySelector('#em_qcount').textContent = engine.settings.qCount + ' أسئلة';
 
   renderQuestions();
