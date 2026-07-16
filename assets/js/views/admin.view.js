@@ -10,6 +10,7 @@ import { getExamLevels } from '../services/levels.service.js';
 import { getSchools } from '../services/schools.service.js';
 import { getUsersByRole, getUser, createUser } from '../services/users.service.js';
 import { getVariableOptions } from '../services/settings.service.js';
+import { getBylaws, resolveBylawId } from '../services/bylaws.service.js';
 import { sendExamRequest, reopenExam } from '../services/exams.service.js';
 import { searchHistoryByNationalId } from '../services/results-history.service.js';
 import { openHistorySearch } from '../components/history-search.js';
@@ -22,7 +23,7 @@ import { setSession } from '../core/session.js';
 import { ROLES } from '../config.js';
 import * as toast from '../core/toast.js';
 
-let root, session, students = [], levels = [], schools = [], teachers = [], options = { stages: [], times: [] };
+let root, session, students = [], levels = [], schools = [], teachers = [], options = { stages: [], times: [] }, bylaws = [];
 
 export async function mount(el, sess) {
   root = el; session = sess;
@@ -32,8 +33,8 @@ export async function mount(el, sess) {
     const fresh = await getUser(session.nationalId);
     if (fresh) session = setSession({ ...session, schoolId: fresh.schoolId || '', schools: Array.isArray(fresh.schools) ? fresh.schools : (session.schools || []) });
   } catch { /* نكتفي ببيانات الجلسة */ }
-  [levels, schools, teachers, options] = await Promise.all([
-    getExamLevels(), getSchools(), getUsersByRole(ROLES.TEACHER), getVariableOptions(),
+  [levels, schools, teachers, options, bylaws] = await Promise.all([
+    getExamLevels(), getSchools(), getUsersByRole(ROLES.TEACHER), getVariableOptions(), getBylaws(),
   ]);
   await refresh();
 }
@@ -130,6 +131,7 @@ function onRowClick(e) {
 async function openForm(existing = null) {
   const isEdit = !!existing;
   const g = (k) => (existing && existing[k] != null ? escapeHtml(existing[k]) : '');
+  let formLevels = levels; // مستويات اللائحة الحالية (تتغيّر حسب لائحة حلقة المعلم)
 
   // المدرسة: تلقائية حسب مدرسة الإدارة، وإلا قائمة اختيار (مشرف عام / مدرسة غير محددة أو محذوفة)
   const fixedSchoolId = isEdit ? existing.schoolId : session.schoolId;
@@ -211,6 +213,7 @@ async function openForm(existing = null) {
         classEl.value = s.className || '';
         tNameEl.value = s.teacherName || '';
         tNidEl.value = s.teacherId || '';
+        if (typeof reloadLevels === 'function') reloadLevels();
       };
       nameEl.addEventListener('change', () => {
         const s = uniqStudents.find((x) => x.name === nameEl.value.trim());
@@ -263,12 +266,27 @@ async function openForm(existing = null) {
 
       // مزامنة أجزاء الاختبار حسب المستوى
       const syncLevel = () => {
-        const f = levels.find((l) => l.level === lvlEl.value);
+        const f = formLevels.find((l) => l.level === lvlEl.value);
         pcEl.value = f ? (f.ajza || '') : '';
         phEl.textContent = f && f.parts ? ('بيان أجزاء الاختبار: ' + f.parts) : '';
       };
       lvlEl.addEventListener('change', syncLevel);
-      syncLevel();
+
+      // تحميل مستويات لائحة حلقة المعلم المختار (نوعية...) بدل الأساسية
+      const rebuildLevelOptions = () => {
+        const cur = lvlEl.value;
+        lvlEl.innerHTML = ['<option value="">اختر المستوى..</option>', ...formLevels.map((l) => `<option value="${escapeHtml(l.level)}" ${cur === l.level ? 'selected' : ''}>${escapeHtml(lvlLabel(l))}</option>`)].join('');
+      };
+      const reloadLevels = async () => {
+        const t = teachers.find((x) => x.id === toLatinDigits(tNidEl.value.trim())) || teachers.find((x) => x.name === tNameEl.value.trim());
+        const bylawId = resolveBylawId(t ? t.circleType : '', bylaws);
+        try { formLevels = await getExamLevels(bylawId); } catch { formLevels = levels; }
+        rebuildLevelOptions();
+        syncLevel();
+      };
+      tNameEl.addEventListener('change', reloadLevels);
+      tNidEl.addEventListener('change', reloadLevels);
+      reloadLevels();
     },
     preConfirm: () => {
       const $ = (id) => document.getElementById(id);
@@ -313,7 +331,7 @@ async function openForm(existing = null) {
       teacherName = (t && t.name) || v.teacherName;
     }
 
-    const lvl = levels.find((l) => l.level === v.examLevel);
+    const lvl = formLevels.find((l) => l.level === v.examLevel) || levels.find((l) => l.level === v.examLevel);
     const payload = {
       name: v.name, nationalId: v.nationalId, mobile: v.mobile,
       schoolId: schoolIdToUse, schoolName: schoolNameToUse,
