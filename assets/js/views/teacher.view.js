@@ -5,6 +5,8 @@
 
 import { getStudentsByTeacher } from '../services/students.service.js';
 import { getExamLevels } from '../services/levels.service.js';
+import { getBylaws, resolveBylawId } from '../services/bylaws.service.js';
+import { getUser } from '../services/users.service.js';
 import { approveInternalExam } from '../services/exams.service.js';
 import { openExamModal } from '../components/exam-modal.js';
 import { downloadCertificate } from '../certificates/certificate.service.js';
@@ -19,7 +21,11 @@ let root, session, levels = [], students = [];
 export async function mount(el, sess) {
   root = el; session = sess;
   root.innerHTML = '<div class="text-center py-12 text-slate-400"><span class="material-symbols-outlined animate-spin text-3xl">progress_activity</span></div>';
-  levels = await getExamLevels();
+  // تحديد لائحة الاختبار حسب نوع حلقة المعلم
+  let circleType = session.circleType || '';
+  try { const me = await getUser(session.nationalId); if (me && me.circleType) circleType = me.circleType; } catch { /* */ }
+  const bylaws = await getBylaws();
+  levels = await getExamLevels(resolveBylawId(circleType, bylaws));
   await refresh();
 }
 

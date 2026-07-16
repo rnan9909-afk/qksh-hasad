@@ -20,11 +20,12 @@ export function defaultEvalCfg() {
   };
 }
 
-/** جلب كل المستويات. */
-export async function getExamLevels() {
+/** جلب مستويات لائحة محددة ('default' = اللائحة الأساسية). */
+export async function getExamLevels(bylawId = 'default') {
   const rows = await db().list(COLLECTIONS.EXAM_LEVELS);
+  const want = (bylawId === 'default' || !bylawId) ? '' : bylawId;
   const toInt = (v, d) => (v !== undefined && v !== null && !isNaN(v) ? parseInt(v, 10) : d);
-  const mapped = rows.map((r) => ({
+  const mapped = rows.filter((r) => (r.bylawId || '') === want).map((r) => ({
     id: r.id,
     level: String(r.level),
     note: String(r.note || ''),
@@ -37,6 +38,7 @@ export async function getExamLevels() {
     q1: String(r.q1 || ''),
     qHalf: String(r.qHalf || ''),
     evalCfg: (r.evalCfg && typeof r.evalCfg === 'object') ? r.evalCfg : {},
+    bylawId: r.bylawId || '',
   }));
   // الترتيب: تصاعدياً حسب الأجزاء، ومستوى «الإتقان» في الأخير دائماً
   mapped.sort((a, b) => {
@@ -63,6 +65,7 @@ export async function createLevel(data) {
   const id = 'lvl_' + generateId();
   const rec = buildRecord(data);
   rec.evalCfg = data.evalCfg && typeof data.evalCfg === 'object' ? data.evalCfg : defaultEvalCfg();
+  rec.bylawId = data.bylawId || '';
   await db().create(COLLECTIONS.EXAM_LEVELS, rec, id);
   await logEvent('level.create', `إضافة مستوى: ${data.level}`, { targetType: 'level', targetId: id });
   return { success: true, id };

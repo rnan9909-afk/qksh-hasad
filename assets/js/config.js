@@ -38,6 +38,7 @@ export const COLLECTIONS = {
   USERS: 'users',
   SCHOOLS: 'schools',
   EXAM_LEVELS: 'examLevels',
+  BYLAWS: 'bylaws',                    // لوائح الاختبار المتعددة
   STUDENTS: 'students',        // سجل الطالب + سير الاختبار (بديل submissions القديم)
   SETTINGS: 'settings',
   RESULTS_HISTORY: 'resultsHistory',   // سجلات النتائج السابقة (استيراد كبير)

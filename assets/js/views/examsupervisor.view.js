@@ -8,6 +8,8 @@ import { getAllStudents, updateStudent } from '../services/students.service.js';
 import { getExamLevels } from '../services/levels.service.js';
 import { getSchools } from '../services/schools.service.js';
 import { getVariableOptions } from '../services/settings.service.js';
+import { getUsersByRole } from '../services/users.service.js';
+import { getBylaws, resolveBylawId } from '../services/bylaws.service.js';
 import { getUser } from '../services/users.service.js';
 import { setSession } from '../core/session.js';
 import { scheduleExam, approveFinalExam, nominateStudent, excludeStudent } from '../services/exams.service.js';
@@ -24,6 +26,7 @@ let root, session, levels = [], students = [];
 let mySchools = [];       // معرّفات مدارس المشرف المُسندة
 let mySchoolNames = [];   // {id,name} لمدارسه فقط
 let options = { stages: [], times: [] };
+let teachers = [], bylaws = [];
 
 export async function mount(el, sess) {
   root = el; session = sess;
@@ -38,9 +41,11 @@ export async function mount(el, sess) {
       setSession({ ...session, schools: mySchools });
     }
   } catch { /* في حال تعذّر الجلب نكتفي بمدارس الجلسة */ }
-  const [lv, allSchools, opts] = await Promise.all([getExamLevels(), getSchools(), getVariableOptions()]);
+  const [lv, allSchools, opts, tch, bl] = await Promise.all([getExamLevels(), getSchools(), getVariableOptions(), getUsersByRole('teacher'), getBylaws()]);
   levels = lv;
   options = opts;
+  teachers = tch;
+  bylaws = bl;
   mySchoolNames = allSchools.filter((s) => mySchools.includes(s.id));
   await refresh();
 }
@@ -326,10 +331,15 @@ async function openSchedule(s) {
   } catch (err) { toast.close(); toast.error('خطأ', err.message); }
 }
 
-function startFinal(s) {
+async function startFinal(s) {
   if (!s) return;
+  // تحديد لائحة الطالب حسب نوع حلقة معلمه + هذا المشرف
+  const teacher = teachers.find((t) => t.id === s.teacherId);
+  const bylawId = resolveBylawId(teacher ? teacher.circleType : '', bylaws, session.nationalId);
+  let evalLevels = levels;
+  if (bylawId !== 'default') { try { evalLevels = await getExamLevels(bylawId); } catch { /* */ } }
   openExamModal(s, {
-    mode: 'final', levels,
+    mode: 'final', levels: evalLevels,
     onApprove: async (result) => {
       toast.showLoading('جاري اعتماد النتيجة...');
       try {

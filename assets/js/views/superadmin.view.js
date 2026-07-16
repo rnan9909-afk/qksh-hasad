@@ -9,6 +9,7 @@ import { getAllUsers, createUser, updateUser, deleteUser, toggleUser } from '../
 import { getAllStudents } from '../services/students.service.js';
 import { getSchools, createSchool, updateSchool, deleteSchool } from '../services/schools.service.js';
 import { getExamLevels, createLevel, updateLevel, deleteLevel } from '../services/levels.service.js';
+import { getBylaws, createBylaw, updateBylaw, deleteBylaw } from '../services/bylaws.service.js';
 import { getVariableOptions, addVariableOption, updateVariableOption, removeVariableOption } from '../services/settings.service.js';
 import { getAuditLog } from '../services/audit.service.js';
 import { getBatches, addBatch, deleteBatch, parseResultsPaste, getBatchRecords } from '../services/results-history.service.js';
@@ -28,6 +29,8 @@ let rwWinnersAll = [];   // مكافآت الطلاب (كل الناجحين)
 let rwWinnersView = [];  // المعروض بعد التصفية بالمدرسة
 let trTeachers = [], trStudents = [], trTiers = [], trView = [];  // مكافآت المعلمين
 let repStudents = [], repView = [];  // التقارير (المختبَرون)
+let currentBylaw = 'default';        // اللائحة المعروضة في تبويب المستويات
+let bylawsList = [];
 
 const TABS = [
   { id: 'overview', label: 'نظرة عامة', icon: 'dashboard' },
@@ -272,17 +275,29 @@ async function onSchoolClick(e) {
   }
 }
 
-/* --------------------------- المستويات --------------------------- */
+/* --------------------------- المستويات واللوائح --------------------------- */
 async function renderLevels() {
-  cache.levels = await getExamLevels();
+  bylawsList = await getBylaws();
+  if (currentBylaw !== 'default' && !bylawsList.some((b) => b.id === currentBylaw)) currentBylaw = 'default';
+  cache.levels = await getExamLevels(currentBylaw);
   const dash = (v) => (v === '' || v === 0 || v == null ? '<span class="text-slate-300">-</span>' : escapeHtml(String(v)));
+  const bylawOpts = ['<option value="default">اللائحة الأساسية</option>', ...bylawsList.map((b) => `<option value="${escapeHtml(b.id)}" ${currentBylaw === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`)].join('');
+  const isDefault = currentBylaw === 'default';
   content().innerHTML = `
-    <div class="flex justify-between items-center mb-4">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
       <div>
         <h2 class="text-lg font-bold">لائحة الاختبارات المعتمدة</h2>
-        <p class="text-xs text-slate-500 mt-0.5">المستويات وتوزيع أجزاء الاختبار وعدد الأسئلة.</p>
+        <p class="text-xs text-slate-500 mt-0.5">اختر اللائحة لعرض/تعديل مستوياتها. كل لائحة تُطبَّق على حلقاتها ومشرفيها تلقائياً.</p>
       </div>
-      <button id="lv_add" class="btn-primary px-4 py-2 text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">add</span> إضافة مستوى</button></div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <select id="lv_bylaw" class="rounded-lg border border-[#e7edf3] px-3 py-2 text-sm font-bold">${bylawOpts}</select>
+        <button id="lv_addbylaw" class="btn-gold px-3 py-2 text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">library_add</span> إضافة لائحة</button>
+        ${isDefault ? '' : `<button id="lv_editbylaw" class="text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">tune</span> إعدادات اللائحة</button>
+        <button id="lv_delbylaw" class="text-red-500 bg-red-50 px-3 py-2 rounded-lg text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">delete</span> حذف اللائحة</button>`}
+        <button id="lv_add" class="btn-primary px-4 py-2 text-sm flex items-center gap-1"><span class="material-symbols-outlined text-[18px]">add</span> إضافة مستوى</button>
+      </div>
+    </div>
+    ${isDefault ? '' : `<div class="mb-3 text-xs bg-amber-50 border border-amber-100 text-amber-800 rounded-lg p-2.5"><span class="material-symbols-outlined text-[15px]" style="vertical-align:middle;">info</span> أنت تعرض لائحة خاصة — تعديلاتك على المستويات هنا تخص هذه اللائحة فقط.</div>`}
     <div class="section-card overflow-x-auto"><table class="data-table text-center" style="min-width:1000px;">
       <thead><tr>
         <th>المستوى</th><th>الأجزاء</th><th>بيان بأرقام أجزاء الاختبار</th>
@@ -292,6 +307,10 @@ async function renderLevels() {
       </tr></thead><tbody id="lv_body"></tbody></table></div>`;
   content().querySelector('#lv_add').addEventListener('click', () => levelForm());
   content().querySelector('#lv_body').addEventListener('click', onLevelClick);
+  content().querySelector('#lv_bylaw').addEventListener('change', (e) => { currentBylaw = e.target.value; renderLevels(); });
+  content().querySelector('#lv_addbylaw').addEventListener('click', () => bylawForm());
+  const eb = content().querySelector('#lv_editbylaw'); if (eb) eb.addEventListener('click', () => bylawForm(bylawsList.find((b) => b.id === currentBylaw)));
+  const db2 = content().querySelector('#lv_delbylaw'); if (db2) db2.addEventListener('click', doDeleteBylaw);
   const tb = content().querySelector('#lv_body');
   tb.innerHTML = cache.levels.length ? cache.levels.map((l) => `<tr>
     <td class="font-bold text-secondary">${escapeHtml(l.level)}${l.note ? `<div class="text-[11px] text-emerald-600 font-normal mt-0.5">${escapeHtml(l.note)}</div>` : ''}</td>
@@ -379,7 +398,67 @@ async function levelForm(existing = null) {
   });
   if (!res.isConfirmed) return;
   toast.showLoading('...');
-  try { if (isEdit) await updateLevel(existing.id, res.value); else await createLevel(res.value); toast.close(); renderLevels(); }
+  try {
+    if (isEdit) await updateLevel(existing.id, res.value);
+    else await createLevel({ ...res.value, bylawId: currentBylaw === 'default' ? '' : currentBylaw });
+    toast.close(); renderLevels();
+  } catch (err) { toast.close(); toast.error('خطأ', err.message); }
+}
+
+/* --------------------------- إدارة اللوائح --------------------------- */
+async function bylawForm(existing = null) {
+  const isEdit = !!existing;
+  const supervisors = (await getAllUsers()).filter((u) => u.role === ROLES.EXAM_SUPERVISOR);
+  const exCircles = (existing && Array.isArray(existing.circleTypes)) ? existing.circleTypes : [];
+  const exSups = (existing && Array.isArray(existing.supervisors)) ? existing.supervisors : [];
+  const circleChecks = CIRCLE_TYPES.map((c) => `
+    <label class="school-check flex items-center justify-between gap-2 px-3 py-2 rounded-xl border cursor-pointer" style="border-color:rgba(30,77,43,0.14);background:rgba(255,255,255,0.6);">
+      <span class="text-xs font-bold text-slate-700">${escapeHtml(c.label)}</span>
+      <input type="checkbox" class="bl-circle" value="${c.key}" ${exCircles.includes(c.key) ? 'checked' : ''} style="width:1.1rem;height:1.1rem;accent-color:#1E4D2B;">
+    </label>`).join('');
+  const supChecks = supervisors.length ? supervisors.map((u) => `
+    <label class="school-check flex items-center justify-between gap-2 px-3 py-2 rounded-xl border cursor-pointer" style="border-color:rgba(30,77,43,0.14);background:rgba(255,255,255,0.6);">
+      <span class="text-xs font-bold text-slate-700">${escapeHtml(u.name)}</span>
+      <input type="checkbox" class="bl-sup" value="${escapeHtml(u.id)}" ${exSups.includes(u.id) ? 'checked' : ''} style="width:1.1rem;height:1.1rem;accent-color:#1E4D2B;">
+    </label>`).join('') : '<span class="text-xs text-slate-400">لا يوجد مشرفون</span>';
+
+  const res = await window.Swal.fire({
+    title: isEdit ? 'إعدادات اللائحة' : 'إضافة لائحة اختبار',
+    width: 720,
+    html: `<div class="text-right flex flex-col gap-3">
+      <label class="flex flex-col gap-1 text-sm font-bold">اسم اللائحة<input id="bl_name" class="field-input" value="${existing ? escapeHtml(existing.name) : ''}" placeholder="مثال: لائحة الحلقات النوعية"></label>
+      <div class="text-sm font-bold">أنواع الحلقات التابعة لهذه اللائحة
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1 max-h-40 overflow-auto p-0.5">${circleChecks}</div>
+      </div>
+      <div class="text-sm font-bold">المشرفون على هذه اللائحة
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1 max-h-40 overflow-auto p-0.5">${supChecks}</div>
+      </div>
+      ${isEdit ? '' : '<p class="text-[11px] text-slate-400">ستُنسخ مستويات اللائحة الأساسية إلى اللائحة الجديدة لتعدّلها لاحقاً.</p>'}
+    </div>`,
+    showCancelButton: true, confirmButtonText: isEdit ? 'حفظ' : 'إنشاء اللائحة', cancelButtonText: 'إلغاء', confirmButtonColor: '#1E4D2B',
+    preConfirm: () => {
+      const name = document.getElementById('bl_name').value.trim();
+      const circleTypes = Array.from(document.querySelectorAll('.bl-circle:checked')).map((c) => c.value);
+      const sups = Array.from(document.querySelectorAll('.bl-sup:checked')).map((c) => c.value);
+      if (!name) { window.Swal.showValidationMessage('اسم اللائحة مطلوب'); return false; }
+      return { name, circleTypes, supervisors: sups };
+    },
+  });
+  if (!res.isConfirmed) return;
+  toast.showLoading(isEdit ? 'جاري الحفظ...' : 'جاري إنشاء اللائحة ونسخ المستويات...');
+  try {
+    if (isEdit) await updateBylaw(existing.id, res.value);
+    else { const r = await createBylaw(res.value); currentBylaw = r.id; }
+    toast.close(); toast.success('تم', isEdit ? 'حُفظت إعدادات اللائحة.' : 'أُنشئت اللائحة.'); renderLevels();
+  } catch (err) { toast.close(); toast.error('خطأ', err.message); }
+}
+
+async function doDeleteBylaw() {
+  const b = bylawsList.find((x) => x.id === currentBylaw); if (!b) return;
+  const ok = await toast.confirm(`حذف لائحة «${b.name}»؟`, 'ستُحذف مستوياتها الخاصة نهائياً.', { confirmText: 'نعم، حذف', danger: true });
+  if (!ok) return;
+  toast.showLoading('جاري الحذف...');
+  try { await deleteBylaw(currentBylaw); currentBylaw = 'default'; toast.close(); renderLevels(); }
   catch (err) { toast.close(); toast.error('خطأ', err.message); }
 }
 

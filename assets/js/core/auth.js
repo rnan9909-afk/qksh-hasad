@@ -37,6 +37,7 @@ export async function login(rawId) {
       nationalId,
       schoolId: user.schoolId || '',
       schools: Array.isArray(user.schools) ? user.schools : (user.schoolId ? [user.schoolId] : []),
+      circleType: user.circleType || '',
     });
     return { success: true, session };
   }
