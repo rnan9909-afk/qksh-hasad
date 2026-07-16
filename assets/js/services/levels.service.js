@@ -24,7 +24,7 @@ export function defaultEvalCfg() {
 export async function getExamLevels() {
   const rows = await db().list(COLLECTIONS.EXAM_LEVELS);
   const toInt = (v, d) => (v !== undefined && v !== null && !isNaN(v) ? parseInt(v, 10) : d);
-  return rows.map((r) => ({
+  const mapped = rows.map((r) => ({
     id: r.id,
     level: String(r.level),
     note: String(r.note || ''),
@@ -38,6 +38,13 @@ export async function getExamLevels() {
     qHalf: String(r.qHalf || ''),
     evalCfg: (r.evalCfg && typeof r.evalCfg === 'object') ? r.evalCfg : {},
   }));
+  // الترتيب: تصاعدياً حسب الأجزاء، ومستوى «الإتقان» قبل الأخير (قبل مستوى الختم مباشرةً)
+  mapped.sort((a, b) => {
+    if (a.ajza !== b.ajza) return a.ajza - b.ajza;
+    const rank = (l) => (l.level === 'الإتقان' || /إتقان/.test(l.level) ? 0 : 1);
+    return rank(a) - rank(b);
+  });
+  return mapped;
 }
 
 /** بناء سجل من المدخلات (تنظيف الحقول). */
