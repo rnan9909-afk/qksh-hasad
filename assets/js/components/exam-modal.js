@@ -44,6 +44,7 @@ function ensureRoot() {
       </div>
       <div class="p-6 space-y-8 bg-slate-50 overflow-y-auto flex-1">
         <div class="flex justify-between items-center"><span id="em_qcount" class="badge bg-secondary text-white px-3 py-1 rounded-full text-sm"></span></div>
+        <div id="em_distinfo" class="flex flex-wrap gap-3"></div>
         <div id="em_questions" class="space-y-4"></div>
         <div class="flex flex-col md:flex-row gap-6 w-full">
           <div id="em_tajweedCol" class="flex-1 bg-white rounded-[20px] p-5 border border-slate-100 flex flex-col items-center gap-4">
@@ -105,6 +106,7 @@ export function openExamModal(student, { mode = 'internal', levels = [], onAppro
   const qCount = lvl ? lvl.questionCount || 5 : 5;
   engine.configure(student.examLevel, qCount, lvl ? lvl.evalCfg : null);
   root.querySelector('#em_qcount').textContent = engine.settings.qCount + ' أسئلة';
+  renderDistInfo(lvl);
 
   renderQuestions();
   renderTajweed();
@@ -115,6 +117,25 @@ export function openExamModal(student, { mode = 'internal', levels = [], onAppro
 
   updateScore();
   root.classList.remove('hidden-area');
+}
+
+/** عرض بنود توزيع الأسئلة (حسب المستوى) داخل إطارات بارزة. */
+function renderDistInfo(lvl) {
+  const el = root.querySelector('#em_distinfo');
+  if (!el) return;
+  if (!lvl) { el.innerHTML = ''; return; }
+  const items = [
+    ['3 أسئلة في', lvl.q3],
+    ['سؤالين في', lvl.q2],
+    ['سؤال في', lvl.q1],
+    ['سؤال في كل جزئين', lvl.qHalf],
+  ].filter(([, v]) => v && String(v).trim());
+  if (!items.length) { el.innerHTML = ''; return; }
+  el.innerHTML = items.map(([label, v]) => `
+    <div style="flex:1;min-width:150px;border:2px solid #1E4D2B;border-radius:16px;padding:10px 12px;background:linear-gradient(135deg,#eef6f0,#eaf3ec);text-align:center;box-shadow:0 4px 12px -6px rgba(30,77,43,.35);">
+      <div style="font-size:12px;color:#1E4D2B;font-weight:800;margin-bottom:5px;">${escapeHtml(label)}</div>
+      <div style="font-size:15px;font-weight:800;color:#0f172a;">${escapeHtml(String(v))}</div>
+    </div>`).join('');
 }
 
 function renderQuestions() {
