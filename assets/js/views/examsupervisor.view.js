@@ -4,9 +4,10 @@
  * طباعة الشهادة.
  */
 
-import { getAllStudents } from '../services/students.service.js';
+import { getAllStudents, updateStudent } from '../services/students.service.js';
 import { getExamLevels } from '../services/levels.service.js';
 import { getSchools } from '../services/schools.service.js';
+import { getVariableOptions } from '../services/settings.service.js';
 import { getUser } from '../services/users.service.js';
 import { setSession } from '../core/session.js';
 import { scheduleExam, approveFinalExam, nominateStudent, excludeStudent } from '../services/exams.service.js';
@@ -22,6 +23,7 @@ import * as toast from '../core/toast.js';
 let root, session, levels = [], students = [];
 let mySchools = [];       // معرّفات مدارس المشرف المُسندة
 let mySchoolNames = [];   // {id,name} لمدارسه فقط
+let options = { stages: [], times: [] };
 
 export async function mount(el, sess) {
   root = el; session = sess;
@@ -36,8 +38,9 @@ export async function mount(el, sess) {
       setSession({ ...session, schools: mySchools });
     }
   } catch { /* في حال تعذّر الجلب نكتفي بمدارس الجلسة */ }
-  const [lv, allSchools] = await Promise.all([getExamLevels(), getSchools()]);
+  const [lv, allSchools, opts] = await Promise.all([getExamLevels(), getSchools(), getVariableOptions()]);
   levels = lv;
+  options = opts;
   mySchoolNames = allSchools.filter((s) => mySchools.includes(s.id));
   await refresh();
 }
@@ -145,6 +148,7 @@ function renderRows() {
     const finalScore = s.final && hasValue(s.final.score) ? s.final.score : '-';
     const nom = s.nomination || 'pending';
     const actions = [];
+    actions.push(`<button data-edit="${escapeHtml(s.id)}" class="text-emerald-600 bg-emerald-50 p-1.5 rounded" title="تعديل بيانات الطالب"><span class="material-symbols-outlined text-[18px]">edit</span></button>`);
     // زر المراجعة (بحث في القاعدة + ترشيح/استبعاد) متاح دائماً قبل الاختبار النهائي
     if (s.status === 'awaiting_schedule' || nom === 'excluded') {
       actions.push(`<button data-review="${escapeHtml(s.id)}" class="text-primary bg-primary/10 px-3 py-1.5 text-xs rounded flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">fact_check</span> مراجعة الترشيح</button>`);
@@ -172,6 +176,8 @@ function renderRows() {
 }
 
 function onRowClick(e) {
+  const ed = e.target.closest('[data-edit]');
+  if (ed) return openEditStudent(students.find((s) => String(s.id) === ed.dataset.edit));
   const rev = e.target.closest('[data-review]');
   if (rev) return openReview(students.find((s) => String(s.id) === rev.dataset.review));
   const sch = e.target.closest('[data-schedule]');
@@ -208,6 +214,63 @@ function openReview(s) {
       },
     ],
   });
+}
+
+/** تعديل بيانات الطالب (مشرف الاختبارات). */
+async function openEditStudent(s) {
+  if (!s) return;
+  const g = (k) => (s[k] != null ? escapeHtml(s[k]) : '');
+  const lvlLabel = (l) => `${/^\d+$/.test(String(l.level)) ? 'المستوى ' + l.level : l.level}${l.note ? ' — ' + l.note : ''}`;
+  const levelOpts = ['<option value="">اختر المستوى..</option>', ...levels.map((l) => `<option value="${escapeHtml(l.level)}" ${s.examLevel === l.level ? 'selected' : ''}>${escapeHtml(lvlLabel(l))}</option>`)].join('');
+  const timeOpts = ['<option value="">اختر..</option>', ...options.times.map((t) => `<option ${s.classTime === t ? 'selected' : ''}>${escapeHtml(t)}</option>`)].join('');
+  const stageOpts = ['<option value="">اختر..</option>', ...options.stages.map((t) => `<option ${s.eduStage === t ? 'selected' : ''}>${escapeHtml(t)}</option>`)].join('');
+
+  const res = await window.Swal.fire({
+    title: 'تعديل بيانات الطالب',
+    width: 720,
+    html: `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-right">
+      <label class="flex flex-col gap-1 text-sm font-bold">الاسم الرباعي<input id="e_name" class="field-input" value="${g('name')}"></label>
+      <label class="flex flex-col gap-1 text-sm font-bold">السجل المدني<input id="e_nid" class="field-input" maxlength="10" value="${g('nationalId')}"></label>
+      <label class="flex flex-col gap-1 text-sm font-bold">رقم الجوال<input id="e_mobile" class="field-input" maxlength="10" value="${g('mobile')}"></label>
+      <label class="flex flex-col gap-1 text-sm font-bold">المدرسة<input class="field-input bg-slate-50" value="${g('schoolName')}" readonly></label>
+      <label class="flex flex-col gap-1 text-sm font-bold">اسم المعلم/ة<input id="e_teacher" class="field-input" value="${g('teacherName')}"></label>
+      <label class="flex flex-col gap-1 text-sm font-bold">اسم الحلقة<input id="e_class" class="field-input" value="${g('className')}"></label>
+      <label class="flex flex-col gap-1 text-sm font-bold">فئة الحلقة<select id="e_time" class="field-select">${timeOpts}</select></label>
+      <label class="flex flex-col gap-1 text-sm font-bold">المرحلة التعليمية<select id="e_stage" class="field-select">${stageOpts}</select></label>
+      <label class="flex flex-col gap-1 text-sm font-bold">مستوى الاختبار<select id="e_level" class="field-select">${levelOpts}</select></label>
+      <label class="flex flex-col gap-1 text-sm font-bold">الأجزاء<input id="e_parts" class="field-input bg-slate-50" readonly></label>
+    </div>`,
+    showCancelButton: true, confirmButtonText: 'حفظ', cancelButtonText: 'إلغاء', confirmButtonColor: '#1E4D2B',
+    didOpen: () => {
+      const lvl = document.getElementById('e_level');
+      const parts = document.getElementById('e_parts');
+      const sync = () => { const f = levels.find((l) => l.level === lvl.value); parts.value = f ? (f.ajza || '') : ''; };
+      lvl.addEventListener('change', sync); sync();
+    },
+    preConfirm: () => {
+      const v = (id) => document.getElementById(id).value.trim();
+      const data = {
+        name: v('e_name'), nationalId: v('e_nid'), mobile: v('e_mobile'),
+        teacherName: v('e_teacher'), className: v('e_class'),
+        classTime: document.getElementById('e_time').value,
+        eduStage: document.getElementById('e_stage').value,
+        examLevel: document.getElementById('e_level').value,
+      };
+      if (!data.name || !data.nationalId) { window.Swal.showValidationMessage('الاسم والسجل المدني مطلوبان'); return false; }
+      const lvl = levels.find((l) => l.level === data.examLevel);
+      data.parts = lvl ? String(lvl.ajza) : (s.parts || '');
+      return data;
+    },
+  });
+  if (!res.isConfirmed) return;
+  toast.showLoading('جاري الحفظ...');
+  try {
+    const r = await updateStudent(s.id, res.value);
+    toast.close();
+    if (r && r.success === false) return toast.error('تعذّر', r.message);
+    toast.toast('تم الحفظ', 'success');
+    await refresh();
+  } catch (err) { toast.close(); toast.error('خطأ', err.message); }
 }
 
 /** عرض كل مواعيد الاختبارات التي حدّدها المشرف لمدارسه. */
