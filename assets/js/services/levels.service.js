@@ -38,11 +38,12 @@ export async function getExamLevels() {
     qHalf: String(r.qHalf || ''),
     evalCfg: (r.evalCfg && typeof r.evalCfg === 'object') ? r.evalCfg : {},
   }));
-  // الترتيب: تصاعدياً حسب الأجزاء، ومستوى «الإتقان» قبل الأخير (قبل مستوى الختم مباشرةً)
+  // الترتيب: تصاعدياً حسب الأجزاء، ومستوى «الإتقان» في الأخير دائماً
   mapped.sort((a, b) => {
-    if (a.ajza !== b.ajza) return a.ajza - b.ajza;
-    const rank = (l) => (l.level === 'الإتقان' || /إتقان/.test(l.level) ? 0 : 1);
-    return rank(a) - rank(b);
+    const ai = /إتقان/.test(a.level) ? 1 : 0;
+    const bi = /إتقان/.test(b.level) ? 1 : 0;
+    if (ai !== bi) return ai - bi;
+    return a.ajza - b.ajza;
   });
   return mapped;
 }

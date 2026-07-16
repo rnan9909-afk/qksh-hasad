@@ -46,7 +46,7 @@ export const SEED = {
     { id: 'lvl_23', level: '23',     note: '',                 ajza: 23, parts: '8، 9، 10، 11، 12',                examPartsCount: 5,  questionCount: 5,  q3: '',   q2: '',            q1: 'كل جزء',           qHalf: '' },
     { id: 'lvl_25', level: '25',     note: '',                 ajza: 25, parts: '6 - 15',                          examPartsCount: 10, questionCount: 5,  q3: '',   q2: '',            q1: '',                 qHalf: '6، 7، 8، 9، 10، 11، 12، 13، 14، 15' },
     { id: 'lvl_30', level: '30',     note: 'الختم',            ajza: 30, parts: '1، 2، 3، 4، 5، 6، 7، 8، 9، 10',    examPartsCount: 10, questionCount: 5,  q3: '',   q2: '',            q1: '',                 qHalf: '1، 2، 3، 4، 5، 6، 7، 8، 9، 10' },
-    { id: 'lvl_itqan', level: 'الإتقان', note: 'اختبار الإتقان الشامل', ajza: 30, parts: '1 - 30',                examPartsCount: 30, questionCount: 30, q3: '',   q2: '',            q1: 'كل جزء',           qHalf: '' },
+    { id: 'lvl_itqan', level: 'الإتقان', note: 'اختبار إتقان', ajza: 30, parts: '1 - 30',                examPartsCount: 30, questionCount: 30, q3: '',   q2: '',            q1: 'كل جزء',           qHalf: '' },
   ],
 
   /** الإعدادات العامة. */
