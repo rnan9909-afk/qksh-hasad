@@ -38,6 +38,7 @@ export async function login(rawId) {
       schoolId: user.schoolId || '',
       schools: Array.isArray(user.schools) ? user.schools : (user.schoolId ? [user.schoolId] : []),
       circleType: user.circleType || '',
+      tabs: Array.isArray(user.tabs) ? user.tabs : [],
     });
     return { success: true, session };
   }
