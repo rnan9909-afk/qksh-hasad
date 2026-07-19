@@ -32,6 +32,26 @@ let repStudents = [], repView = [];  // التقارير (المختبَرون)
 let currentBylaw = 'default';        // اللائحة المعروضة في تبويب المستويات
 let bylawsList = [];
 let scopeSchools = null;             // نطاق مدارس هذا المشرف (null = الكل)
+let canEdit = true;                  // صلاحية التعديل (false = للاطّلاع فقط)
+
+/** إخفاء كل أزرار التعديل/الحذف/الإضافة/إعادة الفتح للمشرف المطّلع فقط. */
+function applyReadOnlyStyle(on) {
+  const id = 'sa-ro-style';
+  const old = document.getElementById(id);
+  if (old) old.remove();
+  if (!on) return;
+  const sel = [
+    '[data-uedit]', '[data-udel]', '[data-utoggle]', '[data-sedit]', '[data-sdel]',
+    '[data-ledit]', '[data-ldel]', '[data-rwedit]', '[data-tredit]', '[data-rhdel]',
+    '[data-ropen-internal]', '[data-ropen-final]', '[data-var-add]', '[data-var-edit]', '[data-var-del]',
+    '#u_add', '#sc_add', '#lv_add', '#lv_addbylaw', '#lv_editbylaw', '#lv_delbylaw',
+    '#rh_add', '#ce_save', '#set_save',
+  ].map((s) => `#sa_content ${s}`).join(',');
+  const st = document.createElement('style');
+  st.id = id;
+  st.textContent = `${sel}{display:none !important;}`;
+  document.head.appendChild(st);
+}
 
 const TABS = [
   { id: 'overview', label: 'نظرة عامة', icon: 'dashboard' },
@@ -54,7 +74,7 @@ export async function mount(el, sess) {
   try {
     const me = await getUser(session.nationalId);
     if (me) {
-      session = { ...session, tabs: Array.isArray(me.tabs) ? me.tabs : [], schools: Array.isArray(me.schools) ? me.schools : [] };
+      session = { ...session, tabs: Array.isArray(me.tabs) ? me.tabs : [], schools: Array.isArray(me.schools) ? me.schools : [], readOnly: !!me.readOnly };
     }
   } catch { /* نكتفي بالجلسة */ }
 
@@ -64,11 +84,15 @@ export async function mount(el, sess) {
   const tabsToShow = allowed.length ? allowed : TABS;
   // نطاق المدارس: null = الكل (للأساسي أو بلا تحديد)
   scopeSchools = (isPrimary || !Array.isArray(session.schools) || !session.schools.length) ? null : session.schools;
+  // صلاحية التعديل
+  canEdit = isPrimary || !session.readOnly;
+  applyReadOnlyStyle(!canEdit);
 
   root.innerHTML = `
     <div class="flex items-center gap-3 mb-6">
       <div class="size-9 rounded bg-primary/10 flex items-center justify-center text-primary"><span class="material-symbols-outlined">shield_person</span></div>
       <h1 class="text-xl font-bold">لوحة المشرف العام</h1>
+      ${canEdit ? '' : '<span class="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full flex items-center gap-1"><span class="material-symbols-outlined text-[15px]">visibility</span> للاطّلاع فقط</span>'}
     </div>
     <div class="flex gap-2 flex-wrap mb-6 border-b border-slate-200 pb-2" id="sa_tabs">
       ${tabsToShow.map((t, i) => `<button data-tab="${t.id}" class="sa-tab px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1 ${i === 0 ? 'sa-tab-active' : 'text-slate-600 hover:bg-slate-100'}"><span class="material-symbols-outlined text-[18px]">${t.icon}</span> ${t.label}</button>`).join('')}
@@ -209,6 +233,10 @@ async function userForm(existing = null) {
         <span id="u_schools_hint" class="text-[11px] text-slate-400 font-normal mb-1">اضغط ✔ بجانب المدرسة</span>
         <div id="u_schools_list" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-auto p-0.5">${schoolChecks}</div>
       </label>
+      <label id="u_canedit_wrap" class="flex items-center gap-2 text-sm font-bold sm:col-span-2 ${isSuper ? '' : 'hidden'} bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5">
+        <input type="checkbox" id="u_canedit" ${existing && existing.readOnly ? '' : 'checked'} style="width:1.2rem;height:1.2rem;accent-color:#1E4D2B;">
+        <span>يمكنه التعديل (إن أُلغي التحديد يكون <b>للاطّلاع فقط</b>)</span>
+      </label>
       <label id="u_tabs_wrap" class="flex flex-col gap-1 text-sm font-bold sm:col-span-2 ${isSuper ? '' : 'hidden'}">التبويبات التي تظهر له
         <span class="text-[11px] text-slate-400 font-normal mb-1">اختر ما يظهر لهذا المشرف العام</span>
         <div id="u_tabs_list" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-auto p-0.5">${tabsChecks}</div>
@@ -225,6 +253,7 @@ async function userForm(existing = null) {
         document.getElementById('u_school_wrap').classList.toggle('hidden', sup || superA);
         document.getElementById('u_circle_wrap').classList.toggle('hidden', !teacher);
         document.getElementById('u_tabs_wrap').classList.toggle('hidden', !superA);
+        document.getElementById('u_canedit_wrap').classList.toggle('hidden', !superA);
         document.getElementById('u_schools_lbl').textContent = superA ? 'المدارس التي يرى نتائجها (فارغ = كل المدارس)' : 'المدارس المسؤول عنها';
       };
       roleSel.addEventListener('change', toggle);
@@ -248,9 +277,11 @@ async function userForm(existing = null) {
       }
       if (role === ROLES.SUPER_ADMIN) {
         data.tabs = Array.from(document.querySelectorAll('#u_tabs_list .u-tab-cb:checked')).map((c) => c.value);
+        data.readOnly = !document.getElementById('u_canedit').checked;
         if (!data.tabs.length) { window.Swal.showValidationMessage('اختر تبويباً واحداً على الأقل يظهر له'); return false; }
       } else {
         data.tabs = [];
+        data.readOnly = false;
       }
       if (!data.name || !data.id) { window.Swal.showValidationMessage('الاسم ورقم الهوية مطلوبان'); return false; }
       if (role === ROLES.EXAM_SUPERVISOR && data.schools.length === 0) { window.Swal.showValidationMessage('اختر مدرسة واحدة على الأقل للمشرف'); return false; }
