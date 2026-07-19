@@ -65,6 +65,7 @@ export async function createStudent(data) {
     teacherName: data.teacherName || '',
     examLevel: data.examLevel || '',
     parts: data.parts || '',
+    bylawId: data.bylawId || '',
     status: INITIAL_STATUS,
     internal: {},
     final: {},
@@ -101,7 +102,7 @@ export async function updateStudent(id, patch) {
   }
 
   const allowed = ['name', 'nationalId', 'schoolId', 'schoolName', 'className', 'classTime',
-    'eduStage', 'mobile', 'teacherId', 'teacherName', 'examLevel', 'parts'];
+    'eduStage', 'mobile', 'teacherId', 'teacherName', 'examLevel', 'parts', 'bylawId'];
   const clean = {};
   for (const k of allowed) if (patch[k] !== undefined) clean[k] = patch[k];
   if (clean.nationalId) clean.nationalId = toLatinDigits(clean.nationalId);

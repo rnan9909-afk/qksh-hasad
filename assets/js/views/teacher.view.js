@@ -16,16 +16,16 @@ import { statusOrder } from '../core/workflow.js';
 import { escapeHtml, matchesAllTerms, hasValue, partsCount } from '../core/helpers.js';
 import * as toast from '../core/toast.js';
 
-let root, session, levels = [], students = [];
+let root, session, levels = [], students = [], bylaws = [], myCircleType = '';
 
 export async function mount(el, sess) {
   root = el; session = sess;
   root.innerHTML = '<div class="text-center py-12 text-slate-400"><span class="material-symbols-outlined animate-spin text-3xl">progress_activity</span></div>';
   // تحديد لائحة الاختبار حسب نوع حلقة المعلم
-  let circleType = session.circleType || '';
-  try { const me = await getUser(session.nationalId); if (me && me.circleType) circleType = me.circleType; } catch { /* */ }
-  const bylaws = await getBylaws();
-  levels = await getExamLevels(resolveBylawId(circleType, bylaws));
+  myCircleType = session.circleType || '';
+  try { const me = await getUser(session.nationalId); if (me && me.circleType) myCircleType = me.circleType; } catch { /* */ }
+  bylaws = await getBylaws();
+  levels = await getExamLevels(resolveBylawId(myCircleType, bylaws));
   await refresh();
 }
 
@@ -100,7 +100,7 @@ function renderRows() {
   }).join('');
 }
 
-function onRowClick(e) {
+async function onRowClick(e) {
   const certBtn = e.target.closest('[data-cert]');
   if (certBtn) {
     const s = students.find((x) => String(x.id) === certBtn.dataset.cert);
@@ -111,9 +111,19 @@ function onRowClick(e) {
   if (!btn) return;
   const s = students.find((x) => String(x.id) === btn.dataset.exam);
   if (!s) return;
+  // مستويات لائحة الطالب (المخزّنة بسجله، وإلا لائحة المعلم، مع رجوع آمن للأساسية)
+  let evalLevels = levels;
+  try {
+    const bylawId = s.bylawId || resolveBylawId(myCircleType, bylaws);
+    evalLevels = await getExamLevels(bylawId || 'default');
+    if (!evalLevels.some((l) => String(l.level) === String(s.examLevel))) {
+      const def = await getExamLevels('default');
+      if (def.some((l) => String(l.level) === String(s.examLevel))) evalLevels = def;
+    }
+  } catch { /* */ }
   openExamModal(s, {
     mode: 'internal',
-    levels,
+    levels: evalLevels,
     onApprove: async (result) => {
       toast.showLoading('جاري اعتماد الاختبار الداخلي...');
       try {

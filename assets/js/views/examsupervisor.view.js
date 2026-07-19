@@ -224,9 +224,10 @@ function openReview(s) {
 /** تعديل بيانات الطالب (مشرف الاختبارات). */
 async function openEditStudent(s) {
   if (!s) return;
+  const editLevels = await resolveEvalLevels(s); // مستويات لائحة الطالب
   const g = (k) => (s[k] != null ? escapeHtml(s[k]) : '');
   const lvlLabel = (l) => `${/^\d+$/.test(String(l.level)) ? 'المستوى ' + l.level : l.level}${l.note ? ' — ' + l.note : ''}`;
-  const levelOpts = ['<option value="">اختر المستوى..</option>', ...levels.map((l) => `<option value="${escapeHtml(l.level)}" ${s.examLevel === l.level ? 'selected' : ''}>${escapeHtml(lvlLabel(l))}</option>`)].join('');
+  const levelOpts = ['<option value="">اختر المستوى..</option>', ...editLevels.map((l) => `<option value="${escapeHtml(l.level)}" ${s.examLevel === l.level ? 'selected' : ''}>${escapeHtml(lvlLabel(l))}</option>`)].join('');
   const timeOpts = ['<option value="">اختر..</option>', ...options.times.map((t) => `<option ${s.classTime === t ? 'selected' : ''}>${escapeHtml(t)}</option>`)].join('');
   const stageOpts = ['<option value="">اختر..</option>', ...options.stages.map((t) => `<option ${s.eduStage === t ? 'selected' : ''}>${escapeHtml(t)}</option>`)].join('');
 
@@ -249,7 +250,7 @@ async function openEditStudent(s) {
     didOpen: () => {
       const lvl = document.getElementById('e_level');
       const parts = document.getElementById('e_parts');
-      const sync = () => { const f = levels.find((l) => l.level === lvl.value); parts.value = f ? (f.ajza || '') : ''; };
+      const sync = () => { const f = editLevels.find((l) => l.level === lvl.value); parts.value = f ? (f.ajza || '') : ''; };
       lvl.addEventListener('change', sync); sync();
     },
     preConfirm: () => {
@@ -262,7 +263,7 @@ async function openEditStudent(s) {
         examLevel: document.getElementById('e_level').value,
       };
       if (!data.name || !data.nationalId) { window.Swal.showValidationMessage('الاسم والسجل المدني مطلوبان'); return false; }
-      const lvl = levels.find((l) => l.level === data.examLevel);
+      const lvl = editLevels.find((l) => l.level === data.examLevel);
       data.parts = lvl ? String(lvl.ajza) : (s.parts || '');
       return data;
     },
@@ -331,13 +332,24 @@ async function openSchedule(s) {
   } catch (err) { toast.close(); toast.error('خطأ', err.message); }
 }
 
+/** مستويات لائحة الطالب (المخزّنة بسجله، وإلا حسب معلمه، مع رجوع آمن للأساسية). */
+async function resolveEvalLevels(s) {
+  const teacher = teachers.find((t) => t.id === s.teacherId);
+  const bylawId = s.bylawId || resolveBylawId(teacher ? teacher.circleType : '', bylaws, session.nationalId);
+  let out = levels;
+  try {
+    out = await getExamLevels(bylawId || 'default');
+    if (!out.some((l) => String(l.level) === String(s.examLevel))) {
+      const def = await getExamLevels('default');
+      if (def.some((l) => String(l.level) === String(s.examLevel))) out = def;
+    }
+  } catch { /* */ }
+  return out;
+}
+
 async function startFinal(s) {
   if (!s) return;
-  // تحديد لائحة الطالب حسب نوع حلقة معلمه + هذا المشرف
-  const teacher = teachers.find((t) => t.id === s.teacherId);
-  const bylawId = resolveBylawId(teacher ? teacher.circleType : '', bylaws, session.nationalId);
-  let evalLevels = levels;
-  if (bylawId !== 'default') { try { evalLevels = await getExamLevels(bylawId); } catch { /* */ } }
+  const evalLevels = await resolveEvalLevels(s);
   openExamModal(s, {
     mode: 'final', levels: evalLevels,
     onApprove: async (result) => {

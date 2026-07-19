@@ -132,6 +132,7 @@ async function openForm(existing = null) {
   const isEdit = !!existing;
   const g = (k) => (existing && existing[k] != null ? escapeHtml(existing[k]) : '');
   let formLevels = levels; // مستويات اللائحة الحالية (تتغيّر حسب لائحة حلقة المعلم)
+  let formBylawId = isEdit ? (existing.bylawId || '') : ''; // لائحة الطالب المُسجّل بها
 
   // المدرسة: تلقائية حسب مدرسة الإدارة، وإلا قائمة اختيار (مشرف عام / مدرسة غير محددة أو محذوفة)
   const fixedSchoolId = isEdit ? existing.schoolId : session.schoolId;
@@ -280,6 +281,7 @@ async function openForm(existing = null) {
       const reloadLevels = async () => {
         const t = teachers.find((x) => x.id === toLatinDigits(tNidEl.value.trim())) || teachers.find((x) => x.name === tNameEl.value.trim());
         const bylawId = resolveBylawId(t ? t.circleType : '', bylaws);
+        formBylawId = bylawId === 'default' ? '' : bylawId;
         try { formLevels = await getExamLevels(bylawId); } catch { formLevels = levels; }
         rebuildLevelOptions();
         syncLevel();
@@ -339,6 +341,7 @@ async function openForm(existing = null) {
       teacherId, teacherName,
       // الأجزاء = عدد الأجزاء (هي الأساس في الجداول والشهادة)، لا أرقام الأجزاء
       examLevel: v.examLevel, parts: lvl ? String(lvl.ajza) : '',
+      bylawId: formBylawId,
     };
 
     if (isEdit) await updateStudent(existing.id, payload);
