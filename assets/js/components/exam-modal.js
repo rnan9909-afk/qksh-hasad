@@ -43,8 +43,10 @@ function ensureRoot() {
         <button type="button" id="em_close" class="text-slate-400 hover:text-slate-600 p-2"><span class="material-symbols-outlined text-2xl">close</span></button>
       </div>
       <div class="p-6 space-y-8 bg-slate-50 overflow-y-auto flex-1">
-        <div class="flex justify-between items-center"><span id="em_qcount" class="badge bg-secondary text-white px-3 py-1 rounded-full text-sm"></span></div>
-        <div id="em_distinfo" class="flex flex-wrap gap-3"></div>
+        <div class="flex items-center flex-wrap gap-2">
+          <span id="em_qcount" class="badge bg-secondary text-white px-3 py-1 rounded-full text-sm shrink-0"></span>
+          <div id="em_distinfo" class="flex flex-wrap gap-2"></div>
+        </div>
         <div id="em_questions" class="space-y-4"></div>
         <div class="flex flex-col md:flex-row gap-6 w-full">
           <div id="em_tajweedCol" class="flex-1 bg-white rounded-[20px] p-5 border border-slate-100 flex flex-col items-center gap-4">
@@ -119,22 +121,22 @@ export function openExamModal(student, { mode = 'internal', levels = [], onAppro
   root.classList.remove('hidden-area');
 }
 
-/** عرض بنود توزيع الأسئلة (حسب المستوى) داخل إطارات بارزة. */
+/** عرض توزيع الأسئلة بجوار عدد الأسئلة — بنفس ترتيب/شكل صفحة المستويات. */
 function renderDistInfo(lvl) {
   const el = root.querySelector('#em_distinfo');
   if (!el) return;
   if (!lvl) { el.innerHTML = ''; return; }
+  const dash = (v) => (v && String(v).trim() ? escapeHtml(String(v)) : '—');
   const items = [
     ['3 أسئلة في', lvl.q3],
     ['سؤالين في', lvl.q2],
     ['سؤال في', lvl.q1],
     ['سؤال في كل جزئين', lvl.qHalf],
-  ].filter(([, v]) => v && String(v).trim());
-  if (!items.length) { el.innerHTML = ''; return; }
+  ];
   el.innerHTML = items.map(([label, v]) => `
-    <div style="flex:1;min-width:150px;border:2px solid #1E4D2B;border-radius:16px;padding:10px 12px;background:linear-gradient(135deg,#eef6f0,#eaf3ec);text-align:center;box-shadow:0 4px 12px -6px rgba(30,77,43,.35);">
-      <div style="font-size:12px;color:#1E4D2B;font-weight:800;margin-bottom:5px;">${escapeHtml(label)}</div>
-      <div style="font-size:15px;font-weight:800;color:#0f172a;">${escapeHtml(String(v))}</div>
+    <div style="border:1.5px solid #1E4D2B;border-radius:12px;padding:4px 10px;background:#eaf3ec;text-align:center;min-width:88px;">
+      <div style="font-size:10px;color:#1E4D2B;font-weight:800;">${escapeHtml(label)}</div>
+      <div style="font-size:13px;font-weight:800;color:#0f172a;margin-top:2px;">${dash(v)}</div>
     </div>`).join('');
 }
 
