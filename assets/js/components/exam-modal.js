@@ -43,9 +43,9 @@ function ensureRoot() {
         <button type="button" id="em_close" class="text-slate-400 hover:text-slate-600 p-2"><span class="material-symbols-outlined text-2xl">close</span></button>
       </div>
       <div class="p-6 space-y-8 bg-slate-50 overflow-y-auto flex-1">
-        <div class="flex items-center flex-wrap gap-2">
+        <div class="flex items-center flex-wrap gap-2 justify-center">
           <span id="em_qcount" class="badge bg-secondary text-white px-3 py-1 rounded-full text-sm shrink-0"></span>
-          <div id="em_distinfo" class="flex flex-wrap gap-2"></div>
+          <div id="em_distinfo" class="flex flex-wrap gap-2 justify-center"></div>
         </div>
         <div id="em_questions" class="space-y-4"></div>
         <div class="flex flex-col md:flex-row gap-6 w-full">
@@ -126,18 +126,17 @@ function renderDistInfo(lvl) {
   const el = root.querySelector('#em_distinfo');
   if (!el) return;
   if (!lvl) { el.innerHTML = ''; return; }
-  const dash = (v) => (v && String(v).trim() ? escapeHtml(String(v)) : '—');
   const items = [
     ['3 أسئلة في', lvl.q3],
     ['سؤالين في', lvl.q2],
     ['سؤال في', lvl.q1],
     ['سؤال في كل جزئين', lvl.qHalf],
-  ];
+  ].filter(([, v]) => v && String(v).trim());
   el.innerHTML = items.map(([label, v]) => `
-    <div style="border:1.5px solid #1E4D2B;border-radius:12px;padding:4px 10px;background:#eaf3ec;text-align:center;min-width:88px;">
-      <div style="font-size:10px;color:#1E4D2B;font-weight:800;">${escapeHtml(label)}</div>
-      <div style="font-size:13px;font-weight:800;color:#0f172a;margin-top:2px;">${dash(v)}</div>
-    </div>`).join('');
+    <span style="display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(30,77,43,.22);border-radius:9999px;padding:5px 14px;background:#fff;box-shadow:0 2px 6px -3px rgba(30,77,43,.25);">
+      <span style="font-size:11px;color:#64748b;font-weight:700;">${escapeHtml(label)}</span>
+      <span style="font-size:13px;color:#1E4D2B;font-weight:800;">${escapeHtml(String(v))}</span>
+    </span>`).join('');
 }
 
 function renderQuestions() {
